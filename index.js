@@ -1,43 +1,40 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
 
-// Khởi tạo Express cho web server (giúp UptimeRobot ping chống ngủ đông)
+// Khởi tạo Express web server cho UptimeRobot
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.get('/', (req, res) => {
-    res.send('Web server đang chạy trên cổng 10000');
+    res.send('Bot đang hoạt động!');
 });
 
 app.listen(PORT, () => {
     console.log(`Web server đang chạy trên cổng ${PORT}`);
 });
 
-// Khởi tạo Discord Bot với đầy đủ các Intents cần thiết
+// Khởi tạo Client với đầy đủ các Intents cốt lõi
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, // Bắt buộc phải bật cái này trong Developer Portal
-        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.MessageContent
     ]
 });
 
-// Sự kiện khi bot đã đăng nhập thành công
 client.once('ready', () => {
-    console.log(`Đã đăng nhập thành công với tên: ${client.user.tag}`);
+    console.log(`Bot đã sẵn sàng! Đăng nhập với tên: ${client.user.tag}`);
 });
 
-// Sự kiện lắng nghe tin nhắn từ người dùng
+// Lắng nghe tin nhắn
 client.on('messageCreate', message => {
-    // Không cho bot tự trả lời tin nhắn của chính nó
+    // Bỏ qua tin nhắn do chính bot gửi để tránh lặp vô tận
     if (message.author.bot) return;
 
-    // Khi có người gõ !hello
     if (message.content === '!hello') {
-        message.reply('Xin chào! Bot Béo Fat Ass của tôi đang chạy 24/7 miễn phí.');
+        message.reply('Chào bạn! Bot Béo Fat Ass đã nghe thấy bạn gọi rồi đây!');
     }
 });
 
-// Đăng nhập bot bằng Token bảo mật lấy từ biến môi trường trên Render
+// Đăng nhập bot
 client.login(process.env.DISCORD_TOKEN);

@@ -24,6 +24,9 @@ const client = new Client({
     ]
 });
 
+// Trạng thái hoạt động của bot (Phục vụ cho lệnh !bot on / !bot off)
+let isBotActive = true; 
+
 // 3. Quản lý lưu trữ dữ liệu JSON (data.json)
 const DATA_FILE = './data.json';
 let db = {};
@@ -73,6 +76,7 @@ client.once('ready', () => {
 
 // Chào mừng thành viên mới
 client.on('guildMemberAdd', member => {
+    if (!isBotActive) return; // Nếu bot đang tắt thì không kích hoạt sự kiện
     const channel = member.guild.systemChannel;
     if (!channel) return;
 
@@ -91,6 +95,7 @@ client.on('guildMemberAdd', member => {
 
 // Tạm biệt khi có thành viên rời server
 client.on('guildMemberRemove', member => {
+    if (!isBotActive) return;
     const channel = member.guild.systemChannel;
     if (!channel) return;
 
@@ -110,18 +115,33 @@ let secretNumber = null;
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     const userId = message.author.id;
-    const user = getUser(userId);
     const OWNER_ID = "950579308051697725";
 
-    // --- LỆNH CHỦ BOT TỐI CAO: TẮT BOT ---
+    // --- LỆNH CHỦ BOT TỐI CAO: BẬT / TẮT BOT ---
     if (message.content === '!bot off') {
         if (userId !== OWNER_ID) {
             return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
         }
-        await message.reply('💤 Bot đang tắt hệ thống... Chào tạm biệt!');
-        console.log('Bot đã được tắt bởi Owner.');
-        process.exit(); 
+        isBotActive = false;
+        await message.reply('💤 Bot đã chuyển sang trạng thái **TẮT** (Ngưng nhận lệnh). Gõ `!bot on` để bật lại!');
+        console.log('Bot đã bị vô hiệu hóa tạm thời bởi Owner.');
+        return;
     }
+
+    if (message.content === '!bot on') {
+        if (userId !== OWNER_ID) {
+            return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
+        }
+        isBotActive = true;
+        await message.reply('🟢 Bot đã được **BẬT** trở lại và hoạt động bình thường!');
+        console.log('Bot đã được kích hoạt lại bởi Owner.');
+        return;
+    }
+
+    // Nếu bot đang bị tắt (!bot off) thì chặn tất cả các lệnh bên dưới đối với người thường (Owner vẫn dùng được lệnh bật bot)
+    if (!isBotActive) return;
+
+    const user = getUser(userId);
 
     // --- LỆNH !info ---
     if (message.content === '!info') {
@@ -145,7 +165,7 @@ client.on('messageCreate', async message => {
                 { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins [@user]` - Xem số dư ví xu của bản thân hoặc người khác\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất server', inline: false },
                 { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime siêu nét (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá nhận thưởng (Phí: 30 xu | Không giới hạn thời gian)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng x2 tiền cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 nhận 30 xu', inline: false },
                 { name: '🛠 Quản Trị (Admin)', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Ban thành viên\n`!unban <ID>` - Gỡ ban bằng ID\n`!mute @user` - Mute thành viên 24h\n`!unmute @user` - Gỡ mute thành viên', inline: false },
-                { name: '👑 Chủ Bot Tối Cao', value: '`!bot off` - Tắt bot từ xa\n`!xu reset @user` - Reset xu về 0\n`!admin add/remove @user` - Cấp/tước quyền Admin', inline: false }
+                { name: '👑 Chủ Bot Tối Cao', value: '`!bot off` / `!bot on` - Tắt / Bật bot tạm thời\n`!xu reset @user` - Reset xu về 0\n`!admin add/remove @user` - Cấp/tước quyền Admin', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -346,7 +366,7 @@ client.on('messageCreate', async message => {
             await targetMember.timeout(24 * 60 * 60 * 1000, 'Bị Mute bởi Admin');
             return message.reply(`🤐 Đã mute **${targetMember.user.username}** trong 24 giờ.`);
         } catch (err) {
-            return message.reply('❌ Không thể mute người này (có thể do họ có quyền cao hơn bot).');
+            return message.reply('❌ Không thể mute người này (có thể do họ có quyền cao hơn bot hoặc bot thiếu quyền Timeout Members).');
         }
     }
 

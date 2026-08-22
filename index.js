@@ -43,12 +43,19 @@ function saveDb() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 }
 
-function getBal(userId) {
+function getUser(userId) {
     if (!db.users[userId]) {
-        db.users[userId] = { coins: 100 };
+        db.users[userId] = { 
+            coins: 100, 
+            lastDaily: 0, 
+            lastFish: 0 
+        };
         saveDb();
     }
-    return db.users[userId].coins;
+    // Đảm bảo các user cũ đã có đủ thuộc tính cooldown
+    if (db.users[userId].lastDaily === undefined) db.users[userId].lastDaily = 0;
+    if (db.users[userId].lastFish === undefined) db.users[userId].lastFish = 0;
+    return db.users[userId];
 }
 
 client.once('ready', () => {
@@ -66,8 +73,8 @@ client.on('guildMemberAdd', member => {
         .setDescription(`Chào ${member.user.username} đã đến với server! Bạn nhận được **100 xu** khởi nghiệp khi vào server nhé!`)
         .setThumbnail(member.user.displayAvatarURL());
     
-    if (!db.users[member.id]) db.users[member.id] = { coins: 100 };
-    else db.users[member.id].coins += 100;
+    const userData = getUser(member.id);
+    userData.coins += 100;
     saveDb();
 
     channel.send({ embeds: [welcomeEmbed] });
@@ -79,6 +86,7 @@ let secretNumber = null;
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     const userId = message.author.id;
+    const user = getUser(userId);
 
     // --- BẢNG MENU HƯỚNG DẪN: !menu hoặc !help ---
     if (message.content === '!help' || message.content === '!menu') {
@@ -87,8 +95,8 @@ client.on('messageCreate', async message => {
             .setTitle('📖 BẢNG HƯỚNG DẪN LỆNH - BOT BÉO FAT ASS')
             .setDescription('Dưới đây là toàn bộ danh sách các lệnh giải trí, kinh tế và quản lý có sẵn trong server:')
             .addFields(
-                { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất', inline: false },
-                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá (Phí: 30 xu)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng ăn x2, thua mất cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
+                { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất', inline: false },
+                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá (Phí: 30 xu | Cooldown: 2 phút)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng ăn x2, thua mất cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
                 { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
@@ -99,16 +107,25 @@ client.on('messageCreate', async message => {
 
     // Xem số dư
     if (message.content === '!coins' || message.content === '!balance') {
-        const bal = getBal(userId);
-        return message.reply(`💰 Bạn đang có **${bal} xu** trong ví.`);
+        return message.reply(`💰 Bạn đang có **${user.coins} xu** trong ví.`);
     }
 
-    // Điểm danh hằng ngày
+    // Điểm danh hằng ngày (Cooldown 24 giờ)
     if (message.content === '!daily') {
-        getBal(userId);
-        db.users[userId].coins += 50;
+        const cooldownTime = 24 * 60 * 60 * 1000; // 24 giờ tính bằng mili-giây
+        const now = Date.now();
+        const timeLeft = cooldownTime - (now - user.lastDaily);
+
+        if (timeLeft > 0) {
+            const hours = Math.floor(timeLeft / (60 * 60 * 1000));
+            const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+            return message.reply(`⏳ Bạn đã điểm danh rồi! Vui lòng quay lại sau **${hours} giờ ${minutes} phút** nữa nhé.`);
+        }
+
+        user.lastDaily = now;
+        user.coins += 50;
         saveDb();
-        return message.reply(`🎁 Bạn đã điểm danh thành công và nhận được **50 xu**! Tổng số dư: **${db.users[userId].coins} xu**.`);
+        return message.reply(`🎁 Bạn đã điểm danh thành công và nhận được **50 xu**! Tổng số dư: **${user.coins} xu**.`);
     }
 
     // Bảng xếp hạng
@@ -119,8 +136,8 @@ client.on('messageCreate', async message => {
         
         let text = "🏆 **TOP 10 NGƯỜI GIÀU NHẤT SERVER:**\n";
         for (let i = 0; i < sorted.length; i++) {
-            const user = await client.users.fetch(sorted[i][0]).catch(() => ({ username: "Người dùng ẩn danh" }));
-            text += `**${i + 1}.** ${user.username} - **${sorted[i][1].coins} xu**\n`;
+            const memberObj = await client.users.fetch(sorted[i][0]).catch(() => ({ username: "Người dùng ẩn danh" }));
+            text += `**${i + 1}.** ${memberObj.username} - **${sorted[i][1].coins} xu**\n`;
         }
         return message.reply(text);
     }
@@ -139,11 +156,11 @@ client.on('messageCreate', async message => {
             return message.reply('Cách dùng: `!xu add <số lượng> @người_dùng`');
         }
 
-        getBal(target.id);
-        db.users[target.id].coins += amount;
+        const targetUser = getUser(target.id);
+        targetUser.coins += amount;
         saveDb();
 
-        return message.reply(`✅ Admin đã cộng **${amount} xu** cho **${target.username}**. Tổng ví: **${db.users[target.id].coins} xu**.`);
+        return message.reply(`✅ Admin đã cộng **${amount} xu** cho **${target.username}**. Tổng ví: **${targetUser.coins} xu**.`);
     }
 
     // --- BẢNG GIÁ CÁ: !caucalist hoặc !listcau ---
@@ -151,7 +168,7 @@ client.on('messageCreate', async message => {
         const listEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle('📖 BẢNG GIÁ TRỊ CÁ & TỈ LỆ CÂU')
-            .setDescription('Phí mỗi lần quăng mồi câu (`!cauca`) là **30 xu**. Dưới đây là danh sách các loài cá và số xu bạn nhận được khi bán:')
+            .setDescription('Phí mỗi lần quăng mồi câu (`!cauca`) là **30 xu** (Cooldown: 2 phút). Dưới đây là danh sách các loài cá và số xu khi bán:')
             .addFields(
                 { 
                     name: '🎣 Danh sách cá', 
@@ -169,16 +186,24 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [listEmbed] });
     }
 
-    // Mini-game Câu cá (Phí 30 xu)
+    // Mini-game Câu cá (Phí 30 xu, Cooldown 2 phút)
     if (message.content === '!cauca') {
-        const cost = 30;
-        const bal = getBal(userId);
+        const cooldownTime = 2 * 60 * 1000; // 2 phút tính bằng mili-giây
+        const now = Date.now();
+        const timeLeft = cooldownTime - (now - user.lastFish);
 
-        if (bal < cost) {
+        if (timeLeft > 0) {
+            const seconds = Math.ceil(timeLeft / 1000);
+            return message.reply(`⏳ Bạn vừa mới đi câu về! Hãy nghỉ ngơi thêm **${seconds} giây** nữa mới được quăng mồi tiếp nhé.`);
+        }
+
+        const cost = 30;
+        if (user.coins < cost) {
             return message.reply(`🎣 Bạn không đủ **${cost} xu** để mua mồi câu! Hãy dùng \`!daily\` để nhận xu nhé.`);
         }
 
-        db.users[userId].coins -= cost;
+        user.coins -= cost;
+        user.lastFish = now;
         saveDb();
 
         const fishes = [
@@ -201,22 +226,20 @@ client.on('messageCreate', async message => {
             }
         }
 
-        db.users[userId].coins += caughtFish.price;
+        user.coins += caughtFish.price;
         saveDb();
 
-        return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${getBal(userId)} xu**.`);
+        return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${user.coins} xu**.`);
     }
 
     // Gacha ảnh qua API
     if (message.content === '!gai') {
         const cost = 20;
-        const bal = getBal(userId);
-
-        if (bal < cost) {
+        if (user.coins < cost) {
             return message.reply(`Bạn không đủ xu để quay! Cần **${cost} xu** để dùng lệnh \`!gai\`.`);
         }
 
-        db.users[userId].coins -= cost;
+        user.coins -= cost;
         saveDb();
 
         try {
@@ -226,13 +249,13 @@ client.on('messageCreate', async message => {
             const gachaEmbed = new EmbedBuilder()
                 .setColor(0xFF00FF)
                 .setTitle(`✨ Kết quả Gacha của ${message.author.username}`)
-                .setDescription(`Bạn đã quay trúng một bức ảnh anime xinh xắn!\n💰 Số dư còn lại: **${getBal(userId)} xu**`)
+                .setDescription(`Bạn đã quay trúng một bức ảnh anime xinh xắn!\n💰 Số dư còn lại: **${user.coins} xu**`)
                 .setImage(imgUrl)
                 .setFooter({ text: `Phí quay: ${cost} xu` });
 
             return message.reply({ embeds: [gachaEmbed] });
         } catch (error) {
-            db.users[userId].coins += cost;
+            user.coins += cost;
             saveDb();
             return message.reply('❌ Lỗi kết nối đến máy chủ ảnh, hệ thống đã hoàn lại xu!');
         }
@@ -248,9 +271,8 @@ client.on('messageCreate', async message => {
             return message.reply('Cách chơi: `!roll <số xu cược> <tai/xiu>`');
         }
 
-        const bal = getBal(userId);
-        if (bal < bet) {
-            return message.reply(`Bạn không đủ xu! Bạn chỉ đang có **${bal} xu**.`);
+        if (user.coins < bet) {
+            return message.reply(`Bạn không đủ xu! Bạn chỉ đang có **${user.coins} xu**.`);
         }
 
         if (choice !== 'tai' && choice !== 'xiu') {
@@ -265,15 +287,13 @@ client.on('messageCreate', async message => {
         const result = total >= 11 ? 'tai' : 'xiu';
 
         if (choice === result) {
-            // Thắng: nhận thêm x2 tiền cược (cộng thêm đúng số tiền cược vào ví)
-            db.users[userId].coins += bet;
+            user.coins += bet; // Thắng nhận thêm x2 tiền cược
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng lớn! Nhận được **${bet} xu**! Số dư mới: **${getBal(userId)} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng lớn! Nhận được **${bet} xu**! Số dư mới: **${user.coins} xu**.`);
         } else {
-            // Thua: trừ đi số tiền cược
-            db.users[userId].coins -= bet;
+            user.coins -= bet; // Thua trừ tiền cược
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet} xu**. Số dư còn lại: **${getBal(userId)} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet} xu**. Số dư còn lại: **${user.coins} xu**.`);
         }
     }
 
@@ -290,8 +310,7 @@ client.on('messageCreate', async message => {
         if (isNaN(guess)) return message.reply('Vui lòng nhập số hợp lệ! Ví dụ: `!doan 5`');
 
         if (guess === secretNumber) {
-            getBal(userId);
-            db.users[userId].coins += 30;
+            user.coins += 30;
             saveDb();
             message.reply(`🏆 Chính xác! Số bí mật là **${secretNumber}**. Nhận thưởng **30 xu**!`);
             secretNumber = null;

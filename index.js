@@ -134,7 +134,7 @@ client.on('messageCreate', async message => {
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: '`!info` - Xem thông tin bot, tag Chủ Bot và link web\n`!hello` - Kiểm tra trạng thái hoạt động của bot', inline: false },
                 { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins [@user]` - Xem số dư ví xu của bản thân hoặc người khác\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất server', inline: false },
                 { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime siêu nét (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá nhận thưởng (Phí: 30 xu | Không giới hạn thời gian)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng x2 tiền cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 nhận 30 xu', inline: false },
-                { name: '👑 Lệnh Dành Cho Admin & Owner', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!xu reset @user` - Reset ví người chơi về 0 (Chỉ Chủ Bot)\n`!clear <số lượng>` - Xóa nhanh tin nhắn hàng loạt (1-100)\n`!ban @user` - Ban thành viên vi phạm khỏi server\n`!admin add @user` - Cấp quyền Admin mới (Chỉ Owner)\n`!admin remove @user` - Tước quyền Admin (Chỉ Owner)', inline: false }
+                { name: '👑 Lệnh Dành Cho Admin & Owner', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!xu reset @user` - Reset ví người chơi về 0 (Chỉ Chủ Bot)\n`!clear <số lượng>` - Xóa nhanh tin nhắn hàng loạt (1-100)\n`!ban @user` - Ban thành viên vi phạm khỏi server\n`!unban <ID>` - Gỡ ban cho thành viên bằng ID\n`!admin add @user` - Cấp quyền Admin mới (Chỉ Owner)\n`!admin remove @user` - Tước quyền Admin (Chỉ Owner)', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -298,6 +298,27 @@ client.on('messageCreate', async message => {
             return message.reply(`🔨 Đã ban thành công **${targetMember.user.username}** khỏi server!`);
         } catch (err) {
             return message.reply('❌ Có lỗi xảy ra khi thực hiện lệnh ban.');
+        }
+    }
+
+    // --- Lệnh Unban thành viên bằng ID ---
+    if (message.content.startsWith('!unban ')) {
+        if (!isAdmin(userId, message.member)) {
+            return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh này!');
+        }
+
+        const args = message.content.split(' ');
+        const targetId = args[1];
+
+        if (!targetId) {
+            return message.reply('Cách dùng: `!unban <ID_Discord>`');
+        }
+
+        try {
+            await message.guild.members.unban(targetId);
+            return message.reply(`✅ Đã gỡ ban thành công cho tài khoản có ID: **${targetId}**! Họ có thể vào lại server.`);
+        } catch (err) {
+            return message.reply('❌ Không tìm thấy ID này trong danh sách bị ban hoặc ID không hợp lệ.');
         }
     }
 

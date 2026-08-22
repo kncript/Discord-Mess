@@ -338,7 +338,7 @@ client.on('messageCreate', async message => {
         saveDb();
 
         const animeImages = [
-            "https://i.imgur.com/34X4v9h.jpg",
+            "file:///D:/Download/sorasaki-hina-blue-archive.gif",
             "https://i.imgur.com/Z4w2q8s.jpg",
             "https://i.imgur.com/7gK5R2B.jpg",
             "https://i.imgur.com/6U2V2x4.jpg",

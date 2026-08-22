@@ -33,10 +33,10 @@ if (fs.existsSync(DATA_FILE)) {
     try {
         db = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     } catch (err) {
-        db = { users: {} };
+        db = { users: {}, admins: [] };
     }
 } else {
-    db = { users: {} };
+    db = { users: {}, admins: [] };
 }
 
 function saveDb() {
@@ -52,10 +52,21 @@ function getUser(userId) {
         };
         saveDb();
     }
-    // Đảm bảo các user cũ đã có đủ thuộc tính cooldown
     if (db.users[userId].lastDaily === undefined) db.users[userId].lastDaily = 0;
     if (db.users[userId].lastFish === undefined) db.users[userId].lastFish = 0;
     return db.users[userId];
+}
+
+// Kiểm tra quyền Admin (hoặc Owner Discord)
+function isAdmin(userId, member) {
+    // Thay ID của bạn vào đây nếu muốn set cứng bạn làm Owner gốc (hoặc bot tự nhận diện Administrator của server)
+    const OWNER_ID = "THAY_ID_DISCORD_CỦA_BẠN_VÀO_ĐÂY"; 
+    
+    if (userId === OWNER_ID) return true;
+    if (db.admins && db.admins.includes(userId)) return true;
+    if (member && member.permissions.has('Administrator')) return true;
+    
+    return false;
 }
 
 client.once('ready', () => {
@@ -97,7 +108,7 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất', inline: false },
                 { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá (Phí: 30 xu | Cooldown: 2 phút)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng ăn x2, thua mất cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
-                { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)', inline: false }
+                { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Kick/Ban thành viên khỏi server\n`!admin add @user` - Thêm Admin mới (Chỉ Owner gốc)\n`!admin remove @user` - Xóa quyền Admin (Chỉ Owner gốc)', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -112,7 +123,7 @@ client.on('messageCreate', async message => {
 
     // Điểm danh hằng ngày (Cooldown 24 giờ)
     if (message.content === '!daily') {
-        const cooldownTime = 24 * 60 * 60 * 1000; // 24 giờ tính bằng mili-giây
+        const cooldownTime = 24 * 60 * 60 * 1000;
         const now = Date.now();
         const timeLeft = cooldownTime - (now - user.lastDaily);
 
@@ -142,9 +153,44 @@ client.on('messageCreate', async message => {
         return message.reply(text);
     }
 
+    // --- QUẢN LÝ ADMIN: !admin add / !admin remove (Chỉ Owner gốc mới có quyền) ---
+    if (message.content.startsWith('!admin ')) {
+        const OWNER_ID = "THAY_ID_DISCORD_CỦA_BẠN_VÀO_AY"; // Nhập ID Discord của bạn vào đây
+        if (userId !== OWNER_ID) {
+            return message.reply('❌ Chỉ có Chủ Bot (Owner gốc) mới có quyền quản lý danh sách Admin!');
+        }
+
+        const args = message.content.split(' ');
+        const action = args[1];
+        const targetUser = message.mentions.users.first();
+
+        if (!targetUser || (action !== 'add' && action !== 'remove')) {
+            return message.reply('Cách dùng: `!admin add @user` hoặc `!admin remove @user`');
+        }
+
+        if (!db.admins) db.admins = [];
+
+        if (action === 'add') {
+            if (db.admins.includes(targetUser.id)) {
+                return message.reply(`⚠️ **${targetUser.username}** đã là Admin từ trước rồi!`);
+            }
+            db.admins.push(targetUser.id);
+            saveDb();
+            return message.reply(`✅ Đã cấp quyền Admin thành công cho **${targetUser.username}**!`);
+        } else if (action === 'remove') {
+            const index = db.admins.indexOf(targetUser.id);
+            if (index === -1) {
+                return message.reply(`⚠️ **${targetUser.username}** không có trong danh sách Admin!`);
+            }
+            db.admins.splice(index, 1);
+            saveDb();
+            return message.reply(`✅ Đã tước quyền Admin của **${targetUser.username}**!`);
+        }
+    }
+
     // Lệnh Admin bơm xu
     if (message.content.startsWith('!xu add ')) {
-        if (!message.member.permissions.has('Administrator')) {
+        if (!isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh này!');
         }
 
@@ -161,6 +207,29 @@ client.on('messageCreate', async message => {
         saveDb();
 
         return message.reply(`✅ Admin đã cộng **${amount} xu** cho **${target.username}**. Tổng ví: **${targetUser.coins} xu**.`);
+    }
+
+    // Lệnh Ban thành viên dành cho Admin: !ban @user
+    if (message.content.startsWith('!ban ')) {
+        if (!isAdmin(userId, message.member)) {
+            return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh ban thành viên!');
+        }
+
+        const targetMember = message.mentions.members.first();
+        if (!targetMember) {
+            return message.reply('Cách dùng: `!ban @người_dùng`');
+        }
+
+        if (!targetMember.bannable) {
+            return message.reply('❌ Bot không đủ quyền hạn để ban người này (kiểm tra lại thứ hạng vai trò của bot trong server).');
+        }
+
+        try {
+            await targetMember.ban({ reason: `Bị ban bởi Admin ${message.author.tag}` });
+            return message.reply(`🔨 Đã ban thành công **${targetMember.user.username}** khỏi server!`);
+        } catch (err) {
+            return message.reply('❌ Có lỗi xảy ra khi thực hiện lệnh ban.');
+        }
     }
 
     // --- BẢNG GIÁ CÁ: !caucalist hoặc !listcau ---
@@ -188,7 +257,7 @@ client.on('messageCreate', async message => {
 
     // Mini-game Câu cá (Phí 30 xu, Cooldown 2 phút)
     if (message.content === '!cauca') {
-        const cooldownTime = 2 * 60 * 1000; // 2 phút tính bằng mili-giây
+        const cooldownTime = 2 * 60 * 1000;
         const now = Date.now();
         const timeLeft = cooldownTime - (now - user.lastFish);
 
@@ -261,7 +330,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // Tài xỉu (Thắng ăn x2 tiền cược, thua trừ tiền cược)
+    // Tài xỉu
     if (message.content.startsWith('!roll')) {
         const args = message.content.split(' ');
         const bet = parseInt(args[1]);
@@ -287,11 +356,11 @@ client.on('messageCreate', async message => {
         const result = total >= 11 ? 'tai' : 'xiu';
 
         if (choice === result) {
-            user.coins += bet; // Thắng nhận thêm x2 tiền cược
+            user.coins += bet;
             saveDb();
             return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng lớn! Nhận được **${bet} xu**! Số dư mới: **${user.coins} xu**.`);
         } else {
-            user.coins -= bet; // Thua trừ tiền cược
+            user.coins -= bet;
             saveDb();
             return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet} xu**. Số dư còn lại: **${user.coins} xu**.`);
         }
@@ -323,13 +392,14 @@ client.on('messageCreate', async message => {
 
     // Xóa chat
     if (message.content.startsWith('!clear ')) {
-        if (!message.member.permissions.has('ManageMessages')) return message.reply('Bạn không có quyền!');
+        if (!isAdmin(userId, message.member)) return message.reply('Bạn không có quyền!');
         const amount = parseInt(message.content.split(' ')[1]);
         if (isNaN(amount) || amount < 1 || amount > 100) return message.reply('Nhập số từ 1 đến 100.');
         
         await message.channel.bulkDelete(amount + 1, true).catch(() => {});
-        const notifyMsg = await message.channel.send(`Đã xóa ${amount} tin nhắn!`);
-        setTimeout(() => notifyMsg.delete().catch(() => {}), 3000);
+        const notifyMsg = message.channel.send(`Đã xóa ${amount} tin nhắn!`).then(msg => {
+            setTimeout(() => msg.delete().catch(() => {}), 3000);
+        });
         return;
     }
 

@@ -76,7 +76,7 @@ client.once('ready', () => {
 
 // Chào mừng thành viên mới
 client.on('guildMemberAdd', member => {
-    if (!isBotActive) return; // Nếu bot đang tắt thì không kích hoạt sự kiện
+    if (!isBotActive) return;
     const channel = member.guild.systemChannel;
     if (!channel) return;
 
@@ -138,7 +138,6 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    // Nếu bot đang bị tắt (!bot off) thì chặn tất cả các lệnh bên dưới đối với người thường (Owner vẫn dùng được lệnh bật bot)
     if (!isBotActive) return;
 
     const user = getUser(userId);
@@ -148,7 +147,7 @@ client.on('messageCreate', async message => {
         const infoEmbed = new EmbedBuilder()
             .setColor(0xF1C40F)
             .setTitle('🤖 THÔNG TIN HỆ THỐNG BOT')
-            .setDescription(`Bot được phát triển để phục vụ server.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Admin:** [Nhấn vào đây để truy cập](https://sparkly-choux-b87226.netlify.app/)\n\nGõ \`!menu\` để xem toàn bộ danh sách lệnh giải trí và quản trị!`)
+            .setDescription(`Bot được phát triển để phục vụ server.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây để truy cập](https://hina-long-pfbot.netlify.app/)\n\nGõ \`!menu\` để xem toàn bộ danh sách lệnh giải trí và quản trị!`)
             .setTimestamp();
 
         return message.reply({ embeds: [infoEmbed] });
@@ -161,7 +160,7 @@ client.on('messageCreate', async message => {
             .setTitle('📖 BẢNG HƯỚNG DẪN LỆNH - BOT BÉO FAT ASS')
             .setDescription('Dưới đây là toàn bộ danh sách các lệnh giải trí, kinh tế và quản lý có sẵn trong server:')
             .addFields(
-                { name: 'ℹ️ Thông Tin & Hệ Thống', value: '`!info` - Xem thông tin bot, tag Chủ Bot và link web\n`!hello` - Kiểm tra trạng thái hoạt động của bot', inline: false },
+                { name: 'ℹ️ Thông Tin & Hệ Thống', value: '`!info` - Xem thông tin bot, tag Chủ Bot và link web profile\n`!hello` - Kiểm tra trạng thái hoạt động của bot', inline: false },
                 { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins [@user]` - Xem số dư ví xu của bản thân hoặc người khác\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất server', inline: false },
                 { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime siêu nét (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá nhận thưởng (Phí: 30 xu | Không giới hạn thời gian)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng x2 tiền cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 nhận 30 xu', inline: false },
                 { name: '🛠 Quản Trị (Admin)', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Ban thành viên\n`!unban <ID>` - Gỡ ban bằng ID\n`!mute @user` - Mute thành viên 24h\n`!unmute @user` - Gỡ mute thành viên', inline: false },
@@ -366,7 +365,7 @@ client.on('messageCreate', async message => {
             await targetMember.timeout(24 * 60 * 60 * 1000, 'Bị Mute bởi Admin');
             return message.reply(`🤐 Đã mute **${targetMember.user.username}** trong 24 giờ.`);
         } catch (err) {
-            return message.reply('❌ Không thể mute người này (có thể do họ có quyền cao hơn bot hoặc bot thiếu quyền Timeout Members).');
+            return message.reply('❌ Không thể mute người này.');
         }
     }
 

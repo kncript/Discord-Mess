@@ -88,7 +88,7 @@ client.on('messageCreate', async message => {
             .setDescription('Dưới đây là toàn bộ danh sách các lệnh giải trí, kinh tế và quản lý có sẵn trong server:')
             .addFields(
                 { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất', inline: false },
-                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá đổi thưởng (Phí: 10 xu)\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu xúc xắc\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
+                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá (Phí: 30 xu)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng ăn x2, thua mất cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
                 { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
@@ -146,9 +146,32 @@ client.on('messageCreate', async message => {
         return message.reply(`✅ Admin đã cộng **${amount} xu** cho **${target.username}**. Tổng ví: **${db.users[target.id].coins} xu**.`);
     }
 
-    // Mini-game Câu cá
+    // --- BẢNG GIÁ CÁ: !caucalist hoặc !listcau ---
+    if (message.content === '!caucalist' || message.content === '!listcau') {
+        const listEmbed = new EmbedBuilder()
+            .setColor(0x0099FF)
+            .setTitle('📖 BẢNG GIÁ TRỊ CÁ & TỈ LỆ CÂU')
+            .setDescription('Phí mỗi lần quăng mồi câu (`!cauca`) là **30 xu**. Dưới đây là danh sách các loài cá và số xu bạn nhận được khi bán:')
+            .addFields(
+                { 
+                    name: '🎣 Danh sách cá', 
+                    value: '🗑️ **Chiếc giày rách** - 10 xu *(Tỉ lệ: 40%)\n' +
+                           '🐟 **Cá rô phi** - 35 xu *(Tỉ lệ: 30%)\n' +
+                           '🐠 **Cá hồi** - 60 xu *(Tỉ lệ: 20%)\n' +
+                           '🦈 **Cá mập con** - 150 xu *(Tỉ lệ: 8%)\n' +
+                           '🐳 **Cá voi thần thoại** - 400 xu *(Tỉ lệ: 2%)*', 
+                    inline: false 
+                }
+            )
+            .setFooter({ text: 'Dùng lệnh !cauca để thử vận may ngay!' })
+            .setTimestamp();
+
+        return message.reply({ embeds: [listEmbed] });
+    }
+
+    // Mini-game Câu cá (Phí 30 xu)
     if (message.content === '!cauca') {
-        const cost = 10;
+        const cost = 30;
         const bal = getBal(userId);
 
         if (bal < cost) {
@@ -159,11 +182,11 @@ client.on('messageCreate', async message => {
         saveDb();
 
         const fishes = [
-            { name: '👟 Chiếc giày rách', price: 0, chance: 40, emoji: '🗑️' },
-            { name: '🐟 Cá rô phi', price: 15, chance: 30, emoji: '🐟' },
-            { name: '🐠 Cá hồi', price: 40, chance: 20, emoji: '🐠' },
-            { name: '🦈 Cá mập con', price: 100, chance: 8, emoji: '🦈' },
-            { name: '🐳 Cá voi thần thoại', price: 300, chance: 2, emoji: '🐳' }
+            { name: '🗑️ Chiếc giày rách', price: 10, chance: 40 },
+            { name: '🐟 Cá rô phi', price: 35, chance: 30 },
+            { name: '🐠 Cá hồi', price: 60, chance: 20 },
+            { name: '🦈 Cá mập con', price: 150, chance: 8 },
+            { name: '🐳 Cá voi thần thoại', price: 400, chance: 2 }
         ];
 
         const randomNum = Math.random() * 100;
@@ -181,7 +204,7 @@ client.on('messageCreate', async message => {
         db.users[userId].coins += caughtFish.price;
         saveDb();
 
-        return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.emoji} ${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${getBal(userId)} xu**.`);
+        return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${getBal(userId)} xu**.`);
     }
 
     // Gacha ảnh qua API
@@ -215,7 +238,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // Tài xỉu
+    // Tài xỉu (Thắng ăn x2 tiền cược, thua trừ tiền cược)
     if (message.content.startsWith('!roll')) {
         const args = message.content.split(' ');
         const bet = parseInt(args[1]);
@@ -242,20 +265,22 @@ client.on('messageCreate', async message => {
         const result = total >= 11 ? 'tai' : 'xiu';
 
         if (choice === result) {
+            // Thắng: nhận thêm x2 tiền cược (cộng thêm đúng số tiền cược vào ví)
             db.users[userId].coins += bet;
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng **${bet} xu**! Số dư mới: **${getBal(userId)} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng lớn! Nhận được **${bet} xu**! Số dư mới: **${getBal(userId)} xu**.`);
         } else {
+            // Thua: trừ đi số tiền cược
             db.users[userId].coins -= bet;
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua **${bet} xu**. Số dư còn lại: **${getBal(userId)} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet} xu**. Số dư còn lại: **${getBal(userId)} xu**.`);
         }
     }
 
     // Đoán số
     if (message.content === '!game') {
         secretNumber = Math.floor(Math.random() * 10) + 1;
-        return message.repo?.message('🎮 Đã tạo xong số bí mật từ **1 đến 10**. Gõ `!doan <số>` để đoán nhé!') || message.reply('🎮 Đã tạo xong số bí mật từ **1 đến 10**. Gõ `!doan <số>` để đoán nhé!');
+        return message.reply('🎮 Đã tạo xong số bí mật từ **1 đến 10**. Gõ `!doan <số>` để đoán nhé!');
     }
 
     if (message.content.startsWith('!doan ')) {

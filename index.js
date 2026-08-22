@@ -300,7 +300,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${user.coins} xu**.`);
     }
 
-    // Gacha ảnh qua API
+    // Gacha ảnh qua API waifu.pics đã fix
     if (message.content === '!gai') {
         const cost = 20;
         if (user.coins < cost) {
@@ -311,8 +311,8 @@ client.on('messageCreate', async message => {
         saveDb();
 
         try {
-            const response = await axios.get('https://nekos.best/api/v2/neko');
-            const imgUrl = response.data.results[0].url;
+            const response = await axios.get('https://api.waifu.pics/sfw/neko');
+            const imgUrl = response.data.url;
 
             const gachaEmbed = new EmbedBuilder()
                 .setColor(0xFF00FF)
@@ -406,5 +406,5 @@ client.on('messageCreate', async message => {
     }
 });
 
-// Đăng nhập bot
+// Đăng nhập bot bằng biến môi trường trên Render
 client.login(process.env.DISCORD_TOKEN);

@@ -57,10 +57,9 @@ function getUser(userId) {
     return db.users[userId];
 }
 
-// Kiểm tra quyền Admin (hoặc Owner Discord)
+// Kiểm tra quyền Admin (Owner gốc hoặc Admin được cấp quyền)
 function isAdmin(userId, member) {
-    // Thay ID của bạn vào đây nếu muốn set cứng bạn làm Owner gốc (hoặc bot tự nhận diện Administrator của server)
-    const OWNER_ID = "THAY_ID_DISCORD_CỦA_BẠN_VÀO_ĐÂY"; 
+    const OWNER_ID = "950579308051697725"; // ID của bạn
     
     if (userId === OWNER_ID) return true;
     if (db.admins && db.admins.includes(userId)) return true;
@@ -108,7 +107,7 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất', inline: false },
                 { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá (Phí: 30 xu | Cooldown: 2 phút)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng ăn x2, thua mất cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
-                { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Kick/Ban thành viên khỏi server\n`!admin add @user` - Thêm Admin mới (Chỉ Owner gốc)\n`!admin remove @user` - Xóa quyền Admin (Chỉ Owner gốc)', inline: false }
+                { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Kick/Ban thành viên khỏi server\n`!admin add @user` - Thêm Admin mới (Chỉ Owner)\n`!admin remove @user` - Xóa quyền Admin (Chỉ Owner)', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -153,11 +152,11 @@ client.on('messageCreate', async message => {
         return message.reply(text);
     }
 
-    // --- QUẢN LÝ ADMIN: !admin add / !admin remove (Chỉ Owner gốc mới có quyền) ---
+    // --- QUẢN LÝ ADMIN: !admin add / !admin remove (Chỉ Chủ Bot mới có quyền) ---
     if (message.content.startsWith('!admin ')) {
-        const OWNER_ID = "THAY_ID_DISCORD_CỦA_BẠN_VÀO_AY"; // Nhập ID Discord của bạn vào đây
+        const OWNER_ID = "950579308051697725";
         if (userId !== OWNER_ID) {
-            return message.reply('❌ Chỉ có Chủ Bot (Owner gốc) mới có quyền quản lý danh sách Admin!');
+            return message.reply('❌ Chỉ có Chủ Bot tối cao mới có quyền quản lý danh sách Admin!');
         }
 
         const args = message.content.split(' ');
@@ -397,9 +396,8 @@ client.on('messageCreate', async message => {
         if (isNaN(amount) || amount < 1 || amount > 100) return message.reply('Nhập số từ 1 đến 100.');
         
         await message.channel.bulkDelete(amount + 1, true).catch(() => {});
-        const notifyMsg = message.channel.send(`Đã xóa ${amount} tin nhắn!`).then(msg => {
-            setTimeout(() => msg.delete().catch(() => {}), 3000);
-        });
+        const notifyMsg = await message.channel.send(`Đã xóa ${amount} tin nhắn!`);
+        setTimeout(() => notifyMsg.delete().catch(() => {}), 3000);
         return;
     }
 

@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
-const axios = require('axios');
 
 // 1. Khởi tạo Express server (giữ bot online 24/7 trên Render)
 const app = express();
@@ -79,7 +78,7 @@ client.on('guildMemberAdd', member => {
 
     const welcomeEmbed = new EmbedBuilder()
         .setColor(0x0099FF)
-        .setTitle('Chào mừng thành viên mới!')
+        .setTitle('✨ Chào mừng thành viên mới!')
         .setDescription(`Chào ${member.user.username} đã đến với server! Bạn nhận được **100 xu** khởi nghiệp khi vào server nhé!`)
         .setThumbnail(member.user.displayAvatarURL());
     
@@ -90,6 +89,21 @@ client.on('guildMemberAdd', member => {
     channel.send({ embeds: [welcomeEmbed] });
 });
 
+// Tạm biệt khi có thành viên rời server
+client.on('guildMemberRemove', member => {
+    const channel = member.guild.systemChannel;
+    if (!channel) return;
+
+    const byeEmbed = new EmbedBuilder()
+        .setColor(0xFF0000)
+        .setTitle('👋 Thành viên rời server')
+        .setDescription(`Thành viên **${member.user.username}** đã rời khỏi server. Hẹn gặp lại!`)
+        .setThumbnail(member.user.displayAvatarURL())
+        .setTimestamp();
+
+    channel.send({ embeds: [byeEmbed] });
+});
+
 let secretNumber = null;
 
 // 4. Xử lý các lệnh tin nhắn
@@ -98,6 +112,18 @@ client.on('messageCreate', async message => {
     const userId = message.author.id;
     const user = getUser(userId);
 
+    // --- LỆNH !info (Tag chủ bot tối cao) ---
+    if (message.content === '!info') {
+        const OWNER_ID = "950579308051697725";
+        const infoEmbed = new EmbedBuilder()
+            .setColor(0xF1C40F)
+            .setTitle('🤖 THÔNG TIN HỆ THỐNG BOT')
+            .setDescription(`Bot được phát triển để phục vụ server.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\nGõ \`!menu\` để xem toàn bộ danh sách lệnh giải trí và quản trị!`)
+            .setTimestamp();
+
+        return message.reply({ embeds: [infoEmbed] });
+    }
+
     // --- BẢNG MENU HƯỚNG DẪN: !menu hoặc !help ---
     if (message.content === '!help' || message.content === '!menu') {
         const menuEmbed = new EmbedBuilder()
@@ -105,6 +131,7 @@ client.on('messageCreate', async message => {
             .setTitle('📖 BẢNG HƯỚNG DẪN LỆNH - BOT BÉO FAT ASS')
             .setDescription('Dưới đây là toàn bộ danh sách các lệnh giải trí, kinh tế và quản lý có sẵn trong server:')
             .addFields(
+                { name: 'ℹ️ Thông Tin', value: '`!info` - Xem thông tin bot và tag Chủ Bot', inline: false },
                 { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất', inline: false },
                 { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá (Phí: 30 xu | Cooldown: 2 phút)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng ăn x2, thua mất cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
                 { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Kick/Ban thành viên khỏi server\n`!admin add @user` - Thêm Admin mới (Chỉ Owner)\n`!admin remove @user` - Xóa quyền Admin (Chỉ Owner)', inline: false }
@@ -300,7 +327,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${user.coins} xu**.`);
     }
 
-    // Gacha ảnh qua API waifu.pics đã fix
+    // Gacha ảnh anime (Dùng danh sách link trực tiếp ổn định 100%)
     if (message.content === '!gai') {
         const cost = 20;
         if (user.coins < cost) {
@@ -310,23 +337,27 @@ client.on('messageCreate', async message => {
         user.coins -= cost;
         saveDb();
 
-        try {
-            const response = await axios.get('https://api.waifu.pics/sfw/neko');
-            const imgUrl = response.data.url;
+        const animeImages = [
+            "https://i.imgur.com/34X4v9h.jpg",
+            "https://i.imgur.com/Z4w2q8s.jpg",
+            "https://i.imgur.com/7gK5R2B.jpg",
+            "https://i.imgur.com/6U2V2x4.jpg",
+            "https://i.imgur.com/k9b7X1s.jpg",
+            "https://i.imgur.com/R2Jp1Zq.jpg",
+            "https://i.imgur.com/v8N4xQ2.jpg",
+            "https://i.imgur.com/9m5C3hL.jpg"
+        ];
 
-            const gachaEmbed = new EmbedBuilder()
-                .setColor(0xFF00FF)
-                .setTitle(`✨ Kết quả Gacha của ${message.author.username}`)
-                .setDescription(`Bạn đã quay trúng một bức ảnh anime xinh xắn!\n💰 Số dư còn lại: **${user.coins} xu**`)
-                .setImage(imgUrl)
-                .setFooter({ text: `Phí quay: ${cost} xu` });
+        const randomImg = animeImages[Math.floor(Math.random() * animeImages.length)];
 
-            return message.reply({ embeds: [gachaEmbed] });
-        } catch (error) {
-            user.coins += cost;
-            saveDb();
-            return message.reply('❌ Lỗi kết nối đến máy chủ ảnh, hệ thống đã hoàn lại xu!');
-        }
+        const gachaEmbed = new EmbedBuilder()
+            .setColor(0xFF00FF)
+            .setTitle(`✨ Kết quả Gacha của ${message.author.username}`)
+            .setDescription(`Bạn đã quay trúng một bức ảnh anime xinh xắn!\n💰 Số dư còn lại: **${user.coins} xu**`)
+            .setImage(randomImg)
+            .setFooter({ text: `Phí quay: ${cost} xu` });
+
+        return message.reply({ embeds: [gachaEmbed] });
     }
 
     // Tài xỉu

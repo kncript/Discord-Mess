@@ -113,6 +113,16 @@ client.on('messageCreate', async message => {
     const user = getUser(userId);
     const OWNER_ID = "950579308051697725";
 
+    // --- LỆNH CHỦ BOT TỐI CAO: TẮT BOT ---
+    if (message.content === '!bot off') {
+        if (userId !== OWNER_ID) {
+            return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
+        }
+        await message.reply('💤 Bot đang tắt hệ thống... Chào tạm biệt!');
+        console.log('Bot đã được tắt bởi Owner.');
+        process.exit(); 
+    }
+
     // --- LỆNH !info ---
     if (message.content === '!info') {
         const infoEmbed = new EmbedBuilder()
@@ -134,7 +144,8 @@ client.on('messageCreate', async message => {
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: '`!info` - Xem thông tin bot, tag Chủ Bot và link web\n`!hello` - Kiểm tra trạng thái hoạt động của bot', inline: false },
                 { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins [@user]` - Xem số dư ví xu của bản thân hoặc người khác\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất server', inline: false },
                 { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime siêu nét (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá nhận thưởng (Phí: 30 xu | Không giới hạn thời gian)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng x2 tiền cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 nhận 30 xu', inline: false },
-                { name: '👑 Lệnh Dành Cho Admin & Owner', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!xu reset @user` - Reset ví người chơi về 0 (Chỉ Chủ Bot)\n`!clear <số lượng>` - Xóa nhanh tin nhắn hàng loạt (1-100)\n`!ban @user` - Ban thành viên vi phạm khỏi server\n`!unban <ID>` - Gỡ ban cho thành viên bằng ID\n`!admin add @user` - Cấp quyền Admin mới (Chỉ Owner)\n`!admin remove @user` - Tước quyền Admin (Chỉ Owner)', inline: false }
+                { name: '🛠 Quản Trị (Admin)', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Ban thành viên\n`!unban <ID>` - Gỡ ban bằng ID\n`!mute @user` - Mute thành viên 24h\n`!unmute @user` - Gỡ mute thành viên', inline: false },
+                { name: '👑 Chủ Bot Tối Cao', value: '`!bot off` - Tắt bot từ xa\n`!xu reset @user` - Reset xu về 0\n`!admin add/remove @user` - Cấp/tước quyền Admin', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -142,7 +153,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [menuEmbed] });
     }
 
-    // --- Xem số dư (Bản thân hoặc người khác, có kèm tên) ---
+    // --- Xem số dư (Bản thân hoặc người khác) ---
     if (message.content === '!coins' || message.content === '!balance' || message.content.startsWith('!coins ')) {
         const targetUser = message.mentions.users.first() || message.author;
         const targetData = getUser(targetUser.id);
@@ -151,7 +162,7 @@ client.on('messageCreate', async message => {
         return message.reply(`💰 Người dùng **${targetUser.username}** đang có **${formattedCoins} xu** trong ví.`);
     }
 
-    // --- Điểm danh hằng ngày (Cooldown 24 giờ) ---
+    // --- Điểm danh hằng ngày ---
     if (message.content === '!daily') {
         const cooldownTime = 24 * 60 * 60 * 1000;
         const now = Date.now();
@@ -260,7 +271,7 @@ client.on('messageCreate', async message => {
         return message.reply(`✅ Admin đã trừ **${amount.toLocaleString('vi-VN')} xu** của **${target.username}**. Tổng ví còn lại: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // --- Lệnh Reset xu (Chỉ Chủ Bot Tối Cao mới dùng được) ---
+    // --- Lệnh Reset xu (Chỉ Chủ Bot Tối Cao) ---
     if (message.content.startsWith('!xu reset ')) {
         if (userId !== OWNER_ID) {
             return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
@@ -322,6 +333,40 @@ client.on('messageCreate', async message => {
         }
     }
 
+    // --- Lệnh Mute thành viên ---
+    if (message.content.startsWith('!mute ')) {
+        if (!isAdmin(userId, message.member)) {
+            return message.reply('❌ Bạn không có quyền Admin!');
+        }
+
+        const targetMember = message.mentions.members.first();
+        if (!targetMember) return message.reply('Cách dùng: `!mute @người_dùng`');
+
+        try {
+            await targetMember.timeout(24 * 60 * 60 * 1000, 'Bị Mute bởi Admin');
+            return message.reply(`🤐 Đã mute **${targetMember.user.username}** trong 24 giờ.`);
+        } catch (err) {
+            return message.reply('❌ Không thể mute người này (có thể do họ có quyền cao hơn bot).');
+        }
+    }
+
+    // --- Lệnh Unmute thành viên ---
+    if (message.content.startsWith('!unmute ')) {
+        if (!isAdmin(userId, message.member)) {
+            return message.reply('❌ Bạn không có quyền Admin!');
+        }
+
+        const targetMember = message.mentions.members.first();
+        if (!targetMember) return message.reply('Cách dùng: `!unmute @người_dùng`');
+
+        try {
+            await targetMember.timeout(null, 'Gỡ Mute');
+            return message.reply(`✅ Đã gỡ mute cho **${targetMember.user.username}**. Họ đã có thể chat lại bình thường.`);
+        } catch (err) {
+            return message.reply('❌ Có lỗi xảy ra khi gỡ mute.');
+        }
+    }
+
     // --- BẢNG GIÁ CÁ ---
     if (message.content === '!caucalist' || message.content === '!listcau') {
         const listEmbed = new EmbedBuilder()
@@ -345,7 +390,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [listEmbed] });
     }
 
-    // --- Mini-game Câu cá (Đã xóa bỏ Cooldown) ---
+    // --- Mini-game Câu cá (Không giới hạn thời gian) ---
     if (message.content === '!cauca') {
         const cost = 30;
         if (user.coins < cost) {

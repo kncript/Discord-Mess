@@ -80,6 +80,23 @@ client.on('messageCreate', async message => {
     if (message.author.bot) return;
     const userId = message.author.id;
 
+    // --- BẢNG MENU HƯỚNG DẪN: !menu hoặc !help ---
+    if (message.content === '!help' || message.content === '!menu') {
+        const menuEmbed = new EmbedBuilder()
+            .setColor(0x00AE86)
+            .setTitle('📖 BẢNG HƯỚNG DẪN LỆNH - BOT BÉO FAT ASS')
+            .setDescription('Dưới đây là toàn bộ danh sách các lệnh giải trí, kinh tế và quản lý có sẵn trong server:')
+            .addFields(
+                { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất', inline: false },
+                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá đổi thưởng (Phí: 10 xu)\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu xúc xắc\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
+                { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)', inline: false }
+            )
+            .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
+            .setTimestamp();
+
+        return message.reply({ embeds: [menuEmbed] });
+    }
+
     // Xem số dư
     if (message.content === '!coins' || message.content === '!balance') {
         const bal = getBal(userId);
@@ -238,7 +255,7 @@ client.on('messageCreate', async message => {
     // Đoán số
     if (message.content === '!game') {
         secretNumber = Math.floor(Math.random() * 10) + 1;
-        return message.reply('🎮 Đã tạo xong số bí mật từ **1 đến 10**. Gõ `!doan <số>` để đoán nhé!');
+        return message.repo?.message('🎮 Đã tạo xong số bí mật từ **1 đến 10**. Gõ `!doan <số>` để đoán nhé!') || message.reply('🎮 Đã tạo xong số bí mật từ **1 đến 10**. Gõ `!doan <số>` để đoán nhé!');
     }
 
     if (message.content.startsWith('!doan ')) {

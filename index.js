@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
+const axios = require('axios');
 
 // 1. Khởi tạo Express server (giữ bot online 24/7 trên Render)
 const app = express();
@@ -56,7 +57,7 @@ function getUser(userId) {
     return db.users[userId];
 }
 
-// Kiểm tra quyền Admin (Owner gốc hoặc Admin được cấp quyền)
+// Kiểm tra quyền Admin
 function isAdmin(userId, member) {
     const OWNER_ID = "950579308051697725"; // ID của bạn
     
@@ -124,17 +125,17 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [infoEmbed] });
     }
 
-    // --- BẢNG MENU HƯỚNG DẪN: !menu hoặc !help ---
+    // --- BẢNG MENU HƯỚNG DẪN ---
     if (message.content === '!help' || message.content === '!menu') {
         const menuEmbed = new EmbedBuilder()
             .setColor(0x00AE86)
             .setTitle('📖 BẢNG HƯỚNG DẪN LỆNH - BOT BÉO FAT ASS')
             .setDescription('Dưới đây là toàn bộ danh sách các lệnh giải trí, kinh tế và quản lý có sẵn trong server:')
             .addFields(
-                { name: 'ℹ️ Thông Tin', value: '`!info` - Xem thông tin bot và tag Chủ Bot', inline: false },
-                { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất', inline: false },
-                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá (Phí: 30 xu | Cooldown: 2 phút)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng ăn x2, thua mất cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 (Thưởng: 30 xu)', inline: false },
-                { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Kick/Ban thành viên khỏi server\n`!admin add @user` - Thêm Admin mới (Chỉ Owner)\n`!admin remove @user` - Xóa quyền Admin (Chỉ Owner)', inline: false }
+                { name: 'ℹ️ Thông Tin & Hệ Thống', value: '`!info` - Xem thông tin bot và tag Chủ Bot tối cao\n`!hello` - Kiểm tra trạng thái hoạt động của bot', inline: false },
+                { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví xu hiện tại của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất server', inline: false },
+                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime siêu nét (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá nhận thưởng (Phí: 30 xu | Cooldown: 2 phút)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng x2 tiền cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 nhận 30 xu', inline: false },
+                { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn hàng loạt (1-100)\n`!ban @user` - Ban thành viên vi phạm khỏi server\n`!admin add @user` - Cấp quyền Admin mới (Chỉ Owner)\n`!admin remove @user` - Tước quyền Admin (Chỉ Owner)', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -144,7 +145,8 @@ client.on('messageCreate', async message => {
 
     // Xem số dư
     if (message.content === '!coins' || message.content === '!balance') {
-        return message.reply(`💰 Bạn đang có **${user.coins} xu** trong ví.`);
+        const formattedCoins = Number(user.coins).toLocaleString('vi-VN');
+        return message.reply(`💰 Bạn đang có **${formattedCoins} xu** trong ví.`);
     }
 
     // Điểm danh hằng ngày (Cooldown 24 giờ)
@@ -162,7 +164,7 @@ client.on('messageCreate', async message => {
         user.lastDaily = now;
         user.coins += 50;
         saveDb();
-        return message.reply(`🎁 Bạn đã điểm danh thành công và nhận được **50 xu**! Tổng số dư: **${user.coins} xu**.`);
+        return message.reply(`🎁 Bạn đã điểm danh thành công và nhận được **50 xu**! Tổng số dư: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
     // Bảng xếp hạng
@@ -174,12 +176,13 @@ client.on('messageCreate', async message => {
         let text = "🏆 **TOP 10 NGƯỜI GIÀU NHẤT SERVER:**\n";
         for (let i = 0; i < sorted.length; i++) {
             const memberObj = await client.users.fetch(sorted[i][0]).catch(() => ({ username: "Người dùng ẩn danh" }));
-            text += `**${i + 1}.** ${memberObj.username} - **${sorted[i][1].coins} xu**\n`;
+            const userCoins = Number(sorted[i][1].coins).toLocaleString('vi-VN');
+            text += `**${i + 1}.** ${memberObj.username} - **${userCoins} xu**\n`;
         }
         return message.reply(text);
     }
 
-    // --- QUẢN LÝ ADMIN: !admin add / !admin remove (Chỉ Chủ Bot mới có quyền) ---
+    // --- QUẢN LÝ ADMIN ---
     if (message.content.startsWith('!admin ')) {
         const OWNER_ID = "950579308051697725";
         if (userId !== OWNER_ID) {
@@ -232,10 +235,10 @@ client.on('messageCreate', async message => {
         targetUser.coins += amount;
         saveDb();
 
-        return message.reply(`✅ Admin đã cộng **${amount} xu** cho **${target.username}**. Tổng ví: **${targetUser.coins} xu**.`);
+        return message.reply(`✅ Admin đã cộng **${amount.toLocaleString('vi-VN')} xu** cho **${target.username}**. Tổng ví: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // Lệnh Ban thành viên dành cho Admin: !ban @user
+    // Lệnh Ban thành viên
     if (message.content.startsWith('!ban ')) {
         if (!isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh ban thành viên!');
@@ -247,7 +250,7 @@ client.on('messageCreate', async message => {
         }
 
         if (!targetMember.bannable) {
-            return message.reply('❌ Bot không đủ quyền hạn để ban người này (kiểm tra lại thứ hạng vai trò của bot trong server).');
+            return message.reply('❌ Bot không đủ quyền hạn để ban người này.');
         }
 
         try {
@@ -258,7 +261,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- BẢNG GIÁ CÁ: !caucalist hoặc !listcau ---
+    // --- BẢNG GIÁ CÁ ---
     if (message.content === '!caucalist' || message.content === '!listcau') {
         const listEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
@@ -281,7 +284,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [listEmbed] });
     }
 
-    // Mini-game Câu cá (Phí 30 xu, Cooldown 2 phút)
+    // Mini-game Câu cá
     if (message.content === '!cauca') {
         const cooldownTime = 2 * 60 * 1000;
         const now = Date.now();
@@ -324,10 +327,10 @@ client.on('messageCreate', async message => {
         user.coins += caughtFish.price;
         saveDb();
 
-        return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${user.coins} xu**.`);
+        return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // Gacha ảnh anime (Dùng danh sách link trực tiếp ổn định 100%)
+    // Gacha ảnh anime (Dùng API nekos.best cực kỳ ổn định)
     if (message.content === '!gai') {
         const cost = 20;
         if (user.coins < cost) {
@@ -337,27 +340,23 @@ client.on('messageCreate', async message => {
         user.coins -= cost;
         saveDb();
 
-        const animeImages = [
-            "file:///D:/Download/sorasaki-hina-blue-archive.gif",
-            "https://i.imgur.com/Z4w2q8s.jpg",
-            "https://i.imgur.com/7gK5R2B.jpg",
-            "https://i.imgur.com/6U2V2x4.jpg",
-            "https://i.imgur.com/k9b7X1s.jpg",
-            "https://i.imgur.com/R2Jp1Zq.jpg",
-            "https://i.imgur.com/v8N4xQ2.jpg",
-            "https://i.imgur.com/9m5C3hL.jpg"
-        ];
+        try {
+            const response = await axios.get('https://nekos.best/api/v2/neko');
+            const imgUrl = response.data.results[0].url;
 
-        const randomImg = animeImages[Math.floor(Math.random() * animeImages.length)];
+            const gachaEmbed = new EmbedBuilder()
+                .setColor(0xFF00FF)
+                .setTitle(`✨ Kết quả Gacha của ${message.author.username}`)
+                .setDescription(`Bạn đã quay trúng một bức ảnh anime xinh xắn!\n💰 Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**`)
+                .setImage(imgUrl)
+                .setFooter({ text: `Phí quay: ${cost} xu` });
 
-        const gachaEmbed = new EmbedBuilder()
-            .setColor(0xFF00FF)
-            .setTitle(`✨ Kết quả Gacha của ${message.author.username}`)
-            .setDescription(`Bạn đã quay trúng một bức ảnh anime xinh xắn!\n💰 Số dư còn lại: **${user.coins} xu**`)
-            .setImage(randomImg)
-            .setFooter({ text: `Phí quay: ${cost} xu` });
-
-        return message.reply({ embeds: [gachaEmbed] });
+            return message.reply({ embeds: [gachaEmbed] });
+        } catch (error) {
+            user.coins += cost;
+            saveDb();
+            return message.reply('❌ Lỗi kết nối đến máy chủ ảnh, hệ thống đã hoàn lại xu!');
+        }
     }
 
     // Tài xỉu
@@ -371,7 +370,7 @@ client.on('messageCreate', async message => {
         }
 
         if (user.coins < bet) {
-            return message.reply(`Bạn không đủ xu! Bạn chỉ đang có **${user.coins} xu**.`);
+            return message.reply(`Bạn không đủ xu! Bạn chỉ đang có **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
         }
 
         if (choice !== 'tai' && choice !== 'xiu') {
@@ -388,11 +387,11 @@ client.on('messageCreate', async message => {
         if (choice === result) {
             user.coins += bet;
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng lớn! Nhận được **${bet} xu**! Số dư mới: **${user.coins} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng lớn! Nhận được **${bet.toLocaleString('vi-VN')} xu**! Số dư mới: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
         } else {
             user.coins -= bet;
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet} xu**. Số dư còn lại: **${user.coins} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**. Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
         }
     }
 
@@ -437,5 +436,5 @@ client.on('messageCreate', async message => {
     }
 });
 
-// Đăng nhập bot bằng biến môi trường trên Render
+// Đăng nhập bot
 client.login(process.env.DISCORD_TOKEN);

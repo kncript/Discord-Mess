@@ -111,10 +111,10 @@ client.on('messageCreate', async message => {
     if (message.author.bot) return;
     const userId = message.author.id;
     const user = getUser(userId);
+    const OWNER_ID = "950579308051697725";
 
-    // --- LỆNH !info (Tag chủ bot tối cao kèm link web) ---
+    // --- LỆNH !info ---
     if (message.content === '!info') {
-        const OWNER_ID = "950579308051697725";
         const infoEmbed = new EmbedBuilder()
             .setColor(0xF1C40F)
             .setTitle('🤖 THÔNG TIN HỆ THỐNG BOT')
@@ -132,9 +132,9 @@ client.on('messageCreate', async message => {
             .setDescription('Dưới đây là toàn bộ danh sách các lệnh giải trí, kinh tế và quản lý có sẵn trong server:')
             .addFields(
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: '`!info` - Xem thông tin bot, tag Chủ Bot và link web\n`!hello` - Kiểm tra trạng thái hoạt động của bot', inline: false },
-                { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins` - Xem số dư ví xu hiện tại của bạn\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất server', inline: false },
-                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime siêu nét (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá nhận thưởng (Phí: 30 xu | Cooldown: 2 phút)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng x2 tiền cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 nhận 30 xu', inline: false },
-                { name: '👑 Lệnh Dành Cho Admin', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn hàng loạt (1-100)\n`!ban @user` - Ban thành viên vi phạm khỏi server\n`!admin add @user` - Cấp quyền Admin mới (Chỉ Owner)\n`!admin remove @user` - Tước quyền Admin (Chỉ Owner)', inline: false }
+                { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins [@user]` - Xem số dư ví xu của bản thân hoặc người khác\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất server', inline: false },
+                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime siêu nét (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá nhận thưởng (Phí: 30 xu | Không giới hạn thời gian)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng x2 tiền cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 nhận 30 xu', inline: false },
+                { name: '👑 Lệnh Dành Cho Admin & Owner', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!xu reset @user` - Reset ví người chơi về 0 (Chỉ Chủ Bot)\n`!clear <số lượng>` - Xóa nhanh tin nhắn hàng loạt (1-100)\n`!ban @user` - Ban thành viên vi phạm khỏi server\n`!admin add @user` - Cấp quyền Admin mới (Chỉ Owner)\n`!admin remove @user` - Tước quyền Admin (Chỉ Owner)', inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -142,13 +142,16 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [menuEmbed] });
     }
 
-    // Xem số dư
-    if (message.content === '!coins' || message.content === '!balance') {
-        const formattedCoins = Number(user.coins).toLocaleString('vi-VN');
-        return message.reply(`💰 Bạn đang có **${formattedCoins} xu** trong ví.`);
+    // --- Xem số dư (Bản thân hoặc người khác, có kèm tên) ---
+    if (message.content === '!coins' || message.content === '!balance' || message.content.startsWith('!coins ')) {
+        const targetUser = message.mentions.users.first() || message.author;
+        const targetData = getUser(targetUser.id);
+        const formattedCoins = Number(targetData.coins).toLocaleString('vi-VN');
+        
+        return message.reply(`💰 Người dùng **${targetUser.username}** đang có **${formattedCoins} xu** trong ví.`);
     }
 
-    // Điểm danh hằng ngày (Cooldown 24 giờ)
+    // --- Điểm danh hằng ngày (Cooldown 24 giờ) ---
     if (message.content === '!daily') {
         const cooldownTime = 24 * 60 * 60 * 1000;
         const now = Date.now();
@@ -166,7 +169,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🎁 Bạn đã điểm danh thành công và nhận được **50 xu**! Tổng số dư: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // Bảng xếp hạng
+    // --- Bảng xếp hạng ---
     if (message.content === '!top') {
         const sorted = Object.entries(db.users)
             .sort((a, b) => b[1].coins - a[1].coins)
@@ -183,7 +186,6 @@ client.on('messageCreate', async message => {
 
     // --- QUẢN LÝ ADMIN ---
     if (message.content.startsWith('!admin ')) {
-        const OWNER_ID = "950579308051697725";
         if (userId !== OWNER_ID) {
             return message.reply('❌ Chỉ có Chủ Bot tối cao mới có quyền quản lý danh sách Admin!');
         }
@@ -216,7 +218,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // Lệnh Admin bơm xu (!xu add)
+    // --- Lệnh Admin bơm xu (!xu add) ---
     if (message.content.startsWith('!xu add ')) {
         if (!isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh này!');
@@ -237,7 +239,7 @@ client.on('messageCreate', async message => {
         return message.reply(`✅ Admin đã cộng **${amount.toLocaleString('vi-VN')} xu** cho **${target.username}**. Tổng ví: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // Lệnh Admin trừ xu (!xu sub)
+    // --- Lệnh Admin trừ xu (!xu sub) ---
     if (message.content.startsWith('!xu sub ')) {
         if (!isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh này!');
@@ -258,7 +260,25 @@ client.on('messageCreate', async message => {
         return message.reply(`✅ Admin đã trừ **${amount.toLocaleString('vi-VN')} xu** của **${target.username}**. Tổng ví còn lại: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // Lệnh Ban thành viên
+    // --- Lệnh Reset xu (Chỉ Chủ Bot Tối Cao mới dùng được) ---
+    if (message.content.startsWith('!xu reset ')) {
+        if (userId !== OWNER_ID) {
+            return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
+        }
+
+        const target = message.mentions.users.first();
+        if (!target) {
+            return message.reply('Cách dùng: `!xu reset @người_dùng`');
+        }
+
+        const targetUser = getUser(target.id);
+        targetUser.coins = 0;
+        saveDb();
+
+        return message.reply(`🔄 Đã reset số dư của **${target.username}** về **0 xu** thành công!`);
+    }
+
+    // --- Lệnh Ban thành viên ---
     if (message.content.startsWith('!ban ')) {
         if (!isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh ban thành viên!');
@@ -286,7 +306,7 @@ client.on('messageCreate', async message => {
         const listEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle('📖 BẢNG GIÁ TRỊ CÁ & TỈ LỆ CÂU')
-            .setDescription('Phí mỗi lần quăng mồi câu (`!cauca`) là **30 xu** (Cooldown: 2 phút). Dưới đây là danh sách các loài cá và số xu khi bán:')
+            .setDescription('Phí mỗi lần quăng mồi câu (`!cauca`) là **30 xu** (Không giới hạn thời gian chờ). Dưới đây là danh sách các loài cá và số xu khi bán:')
             .addFields(
                 { 
                     name: '🎣 Danh sách cá', 
@@ -304,24 +324,14 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [listEmbed] });
     }
 
-    // Mini-game Câu cá
+    // --- Mini-game Câu cá (Đã xóa bỏ Cooldown) ---
     if (message.content === '!cauca') {
-        const cooldownTime = 2 * 60 * 1000;
-        const now = Date.now();
-        const timeLeft = cooldownTime - (now - user.lastFish);
-
-        if (timeLeft > 0) {
-            const seconds = Math.ceil(timeLeft / 1000);
-            return message.reply(`⏳ Bạn vừa mới đi câu về! Hãy nghỉ ngơi thêm **${seconds} giây** nữa mới được quăng mồi tiếp nhé.`);
-        }
-
         const cost = 30;
         if (user.coins < cost) {
             return message.reply(`🎣 Bạn không đủ **${cost} xu** để mua mồi câu! Hãy dùng \`!daily\` để nhận xu nhé.`);
         }
 
         user.coins -= cost;
-        user.lastFish = now;
         saveDb();
 
         const fishes = [
@@ -350,7 +360,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // Gacha ảnh anime
+    // --- Gacha ảnh anime ---
     if (message.content === '!gai') {
         const cost = 20;
         if (user.coins < cost) {
@@ -381,7 +391,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [gachaEmbed] });
     }
 
-    // Tài xỉu
+    // --- Tài xỉu ---
     if (message.content.startsWith('!roll')) {
         const args = message.content.split(' ');
         const bet = parseInt(args[1]);
@@ -413,11 +423,11 @@ client.on('messageCreate', async message => {
         } else {
             user.coins -= bet;
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**. Số dư còn lại: **${Number(user.coins).toLocaleString('vn-VN')} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**. Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
         }
     }
 
-    // Đoán số
+    // --- Đoán số ---
     if (message.content === '!game') {
         secretNumber = Math.floor(Math.random() * 10) + 1;
         return message.reply('🎮 Đã tạo xong số bí mật từ **1 đến 10**. Gõ `!doan <số>` để đoán nhé!');
@@ -441,7 +451,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // Xóa chat
+    // --- Xóa chat ---
     if (message.content.startsWith('!clear ')) {
         if (!isAdmin(userId, message.member)) return message.reply('Bạn không có quyền!');
         const amount = parseInt(message.content.split(' ')[1]);
@@ -458,5 +468,5 @@ client.on('messageCreate', async message => {
     }
 });
 
-// Đăng nhập bot
+// 5. Đăng nhập bot
 client.login(process.env.DISCORD_TOKEN);

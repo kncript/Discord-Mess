@@ -26,6 +26,31 @@ const client = new Client({
 // Kho lưu trữ tiền tệ tạm thời cho thành viên (Key: userId, Value: số xu)
 const economy = new Map();
 
+// Kho lưu trữ ảnh gacha gần nhất của người chơi (Key: userId, Value: thông tin thẻ ảnh)
+const userLastRoll = new Map();
+
+// Danh sách cấp độ hiếm cho hệ thống gacha !gai
+const rarities = [
+    { name: 'Common (Phổ biến)', chance: 60, price: 10, color: 0x999999, image: 'https://picsum.photos/seed/common1/400/300' },
+    { name: 'Rare (Hiếm)', chance: 25, price: 30, color: 0x0099FF, image: 'https://picsum.photos/seed/rare1/400/300' },
+    { name: 'Epic (Cực hiếm)', chance: 10, price: 80, color: 0x9900FF, image: 'https://picsum.photos/seed/epic1/400/300' },
+    { name: 'Legendary (Huyền thoại)', chance: 4, price: 200, color: 0xFFCC00, image: 'https://picsum.photos/seed/legendary1/400/300' },
+    { name: 'Mythic (Thần thoại)', chance: 1, price: 500, color: 0xFF0000, image: 'https://picsum.photos/seed/mythic1/400/300' }
+];
+
+// Hàm random cấp độ ảnh dựa theo tỷ lệ chance
+function rollCard() {
+    const randomNum = Math.random() * 100;
+    let cumulative = 0;
+    for (const r of rarities) {
+        cumulative += r.chance;
+        if (randomNum <= cumulative) {
+            return r;
+        }
+    }
+    return rarities[0];
+}
+
 // Hàm lấy số dư của người dùng (mặc định chưa có thì khởi tạo 100 xu)
 function getBalance(userId) {
     if (!economy.has(userId)) {
@@ -49,7 +74,6 @@ client.on('guildMemberAdd', member => {
         .setDescription(`Chào ${member.user.username} đã đến với server! Bạn nhận được **100 xu** khởi nghiệp khi vào server nhé!`)
         .setThumbnail(member.user.displayAvatarURL());
     
-    // Tặng 100 xu vào ví khi họ gia nhập
     economy.set(member.id, 100);
     channel.send({ embeds: [welcomeEmbed] });
 });
@@ -76,8 +100,45 @@ client.on('messageCreate', async message => {
         return message.reply(`🎁 Bạn đã điểm danh thành công và nhận được **50 xu**! Tổng số dư: **${bal} xu**.`);
     }
 
+    // --- TRÒ CHƠI GACHA ẢNH: !gai & !ban ---
+    if (message.content === '!gai') {
+        const cost = 20; // Phí mỗi lần quay
+        const bal = getBalance(userId);
+
+        if (bal < cost) {
+            return message.reply(`Bạn không đủ xu để quay! Cần **${cost} xu** để dùng lệnh \`!gai\`. Hãy dùng \`!daily\` để nhận xu.`);
+        }
+
+        economy.set(userId, bal - cost);
+
+        const rewardCard = rollCard();
+        userLastRoll.set(userId, rewardCard);
+
+        const gachaEmbed = new EmbedBuilder()
+            .setColor(rewardCard.color)
+            .setTitle(`✨ Kết quả quay Gacha của ${message.author.username}`)
+            .setDescription(`Bạn quay trúng bậc: **${rewardCard.name}**!\n💰 Giá trị bán: **${rewardCard.price} xu**\n*(Gõ \`!ban\` để bán ảnh này đổi lấy xu)*`)
+            .setImage(rewardCard.image)
+            .setFooter({ text: `Phí quay: ${cost} xu | Số dư còn lại: ${getBalance(userId)} xu` });
+
+        return message.reply({ embeds: [gachaEmbed] });
+    }
+
+    if (message.content === '!ban') {
+        const lastCard = userLastRoll.get(userId);
+        if (!lastCard) {
+            return message.reply('Bạn chưa quay được bức ảnh nào gần đây cả! Hãy gõ `!gai` trước nhé.');
+        }
+
+        let bal = getBalance(userId);
+        bal += lastCard.price;
+        economy.set(userId, bal);
+        userLastRoll.delete(userId);
+
+        return message.reply(`✅ Bạn đã bán thành công bức ảnh bậc **${lastCard.name}** và nhận về **${lastCard.price} xu**!\n💰 Tổng số dư hiện tại: **${bal} xu**.`);
+    }
+
     // --- TRÒ CHƠI XÚC XẮC (TÀI XỈU) ---
-    // Cú pháp: !roll <số xu> <tai/xiu>
     if (message.content.startsWith('!roll')) {
         const args = message.content.split(' ');
         const bet = parseInt(args[1]);
@@ -96,7 +157,6 @@ client.on('messageCreate', async message => {
             return message.reply('Vui lòng chọn đúng cửa cược là `tai` hoặc `xiu` nhé!');
         }
 
-        // Tung 3 con xúc xắc (1-6)
         const d1 = Math.floor(Math.random() * 6) + 1;
         const d2 = Math.floor(Math.random() * 6) + 1;
         const d3 = Math.floor(Math.random() * 6) + 1;
@@ -131,7 +191,7 @@ client.on('messageCreate', async message => {
             let bal = getBalance(userId);
             economy.set(userId, bal + 30);
             message.reply(`🏆 Chính xác! Số bí mật đúng là **${secretNumber}**. Bạn nhận được thưởng **30 xu**! Tổng xu hiện tại: **${getBalance(userId)} xu**`);
-            secretNumber = null; // Reset game
+            secretNumber = null;
         } else if (guess < secretNumber) {
             return message.reply('📈 Số bí mật **lớn hơn** (cao hơn) số bạn vừa đoán! Thử lại xem.');
         } else {
@@ -158,7 +218,6 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    // Lệnh kiểm tra cơ bản
     if (message.content === '!hello') {
         return message.reply('Chào bạn! Bot Béo Fat Ass vẫn đang hoạt động siêu mượt đây!');
     }

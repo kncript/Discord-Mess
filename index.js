@@ -52,7 +52,7 @@ const configSchema = new mongoose.Schema({
 });
 const Config = mongoose.model('Config', configSchema);
 
-// Hàm lấy dữ liệu user từ MongoDB (tương tự getUser cũ)
+// Hàm lấy dữ liệu user từ MongoDB
 async function getUser(userId) {
     let user = await User.findOne({ userId });
     if (!user) {
@@ -212,7 +212,7 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
                 { name: '💰 Kinh Tế & Điểm Danh', value: `\`${PREFIX}coins [@user]\` - Xem số dư xu\n\`${PREFIX}daily\` - Điểm danh chuỗi Streak nhận quà tăng dần\n\`${PREFIX}top\` - Xem bảng xếp hạng top 10`, inline: false },
-                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh anime ngẫu nhiên từ mạng (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
+                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh waifu anime chuẩn (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
                 { name: '🐾 Hệ Thống Thú Cưng (Pet)', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi pet\n\`${PREFIX}pet\` - Xem thông tin pet\n\`${PREFIX}pet feed\` - Cho pet ăn\n\`${PREFIX}pet work\` - Sai pet đi kiếm xu`, inline: false },
                 { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` / \`${PREFIX}unban <ID>\` - Ban/Unban\n\`${PREFIX}mute @user\` / \`${PREFIX}unmute @user\` - Mute/Unmute`, inline: false },
                 { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\` - Tắt/Bật bot\n\`${PREFIX}xu reset @user\` - Reset xu\n\`${PREFIX}admin add/remove @user\` - Quản lý Admin`, inline: false }
@@ -482,7 +482,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // --- Gacha ảnh anime (.gai - Đã tích hợp gọi API ảnh ngẫu nhiên từ internet) ---
+    // --- Gacha ảnh waifu anime (.gai - Đã sửa lỗi dùng nekos.best chuẩn chỉnh) ---
     if (command === 'gai') {
         const cost = 20;
         if (user.coins < cost) {
@@ -493,11 +493,11 @@ client.on('messageCreate', async message => {
         await user.save();
 
         try {
-            const loadingMsg = await message.reply('✨ Đang triệu hồi ảnh anime đẹp cho bạn...');
+            const loadingMsg = await message.reply('✨ Đang triệu hồi waifu anime thật sự cho bạn...');
 
-            // Gọi API công khai lấy ảnh anime ngẫu nhiên từ mạng
-            const response = await axios.get('https://api.waifu.pics/sfw/waifu');
-            const imageUrl = response.data.url;
+            // Dùng API nekos.best để lấy ảnh nhân vật anime chính hãng, tránh triệt để lỗi Baby Yoda
+            const response = await axios.get('https://nekos.best/api/v2/neko');
+            const imageUrl = response.data.results[0].url;
 
             const gachaEmbed = new EmbedBuilder()
                 .setColor(0xFF00FF)
@@ -509,7 +509,6 @@ client.on('messageCreate', async message => {
             return loadingMsg.edit({ content: null, embeds: [gachaEmbed] });
         } catch (error) {
             console.error('Lỗi khi gọi API ảnh:', error);
-            // Hoàn lại xu nếu lỗi API
             user.coins += cost;
             await user.save();
             return message.reply('❌ Đã xảy ra lỗi khi tải ảnh từ mạng, xu của bạn đã được hoàn lại!');
@@ -648,7 +647,6 @@ client.on('messageCreate', async message => {
             return message.reply(`🐾 Bạn chưa có thú cưng! Dùng \`${PREFIX}pet buy <tên>\` (200 xu).`);
         }
 
-        // Lấy bản sao của object pet để Mongoose nhận diện thay đổi
         let p = { ...user.pet };
 
         if (subAction === 'feed') {

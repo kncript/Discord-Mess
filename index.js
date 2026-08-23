@@ -123,6 +123,18 @@ async function isAdmin(userId, member) {
 client.once('ready', async () => {
     console.log(`Bot đã sẵn sàng! Đăng nhập với tên: ${client.user.tag}`);
 
+    // Tự động cập nhật tên Voice Channel đếm số thành viên mỗi 5 phút
+    setInterval(async () => {
+        const guild = client.guilds.cache.get("1216354495508910110");
+        if (!guild) return;
+
+        const channel = guild.channels.cache.get("1541013061169844335");
+        if (!channel) return;
+
+        const memberCount = guild.memberCount;
+        await channel.setName(`📊 Thành viên: ${memberCount}`).catch(() => {});
+    }, 5 * 60 * 1000);
+
     // Tự động tăng phiên bản bot thêm 0.001 mỗi lần khởi động/update[cite: 1]
     const config = await getConfig();
     config.botVersion = parseFloat((config.botVersion + 0.001).toFixed(3));
@@ -211,18 +223,16 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // --- LỆNH NSFW (CHỈ CHỦ BOT TỐI CAO & KÊNH CHỈ ĐỊNH, CÁC NƠI KHÁC HOẶC NGƯỜI KHÁC DÙNG SẼ KHÔNG PHẢN HỒI) ---
+    // --- LỆNH NSFW (CHỈ CHỦ BOT TỐI CAO & KÊNH CHỈ ĐỊNH) ---
     if (command === 'nsfw') {
         if (userId !== OWNER_ID || message.channel.id !== NSFW_CHANNEL_ID) {
-            return; // Im lặng hoàn toàn, không phản hồi nếu sai kênh hoặc không phải chủ bot
+            return; 
         }
 
-        // Danh sách link hoặc văn bản ngẫu nhiên do bạn cung cấp
         const nsfwList = [
             "https://example.com/link-nsfw-1.jpg",
             "https://example.com/link-nsfw-2.jpg",
             "Văn bản hoặc nội dung NSFW tùy chỉnh thứ 3"
-            // Bạn có thể thêm các link/văn bản khác vào đây, cách nhau bằng dấu phẩy
         ];
 
         if (nsfwList.length === 0) {

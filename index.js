@@ -29,7 +29,7 @@ if (mongoURI) {
     console.log('⚠️ Không tìm thấy biến MONGO_URI trong môi trường!');
 }
 
-// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu thay cho data.json
+// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     coins: { type: Number, default: 100 },
@@ -100,7 +100,6 @@ async function isAdmin(userId, member) {
 client.once('ready', async () => {
     console.log(`Bot đã sẵn sàng! Đăng nhập với tên: ${client.user.tag}`);
 
-    // Gửi tin nhắn thông báo update lên kênh đã chọn
     if (NOTIFICATION_CHANNEL_ID && NOTIFICATION_CHANNEL_ID !== "ĐIỀN_ID_KENH_VAO_ĐÂY") {
         try {
             const channel = await client.channels.fetch(NOTIFICATION_CHANNEL_ID);
@@ -482,7 +481,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // --- Gacha ảnh waifu anime (.gai - Đã sửa lỗi dùng nekos.best chuẩn chỉnh) ---
+    // --- Gacha ảnh waifu anime (.gai - Dùng waifu.pics API ổn định) ---
     if (command === 'gai') {
         const cost = 20;
         if (user.coins < cost) {
@@ -495,13 +494,8 @@ client.on('messageCreate', async message => {
         try {
             const loadingMsg = await message.reply('✨ Đang triệu hồi waifu anime thật sự cho bạn...');
 
-            // Thêm User-Agent vào headers để chống lỗi từ chối kết nối từ API nekos.best
-            const response = await axios.get('https://nekos.best/api/v2/neko', {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            });
-            const imageUrl = response.data.results[0].url;
+            const response = await axios.get('https://api.waifu.pics/sfw/waifu');
+            const imageUrl = response.data.url;
 
             const gachaEmbed = new EmbedBuilder()
                 .setColor(0xFF00FF)

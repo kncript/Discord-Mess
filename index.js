@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const express = require('express');
-const fs = require('fs');
+const mongoose = require('mongoose');
+const axios = require('axios');
 
 // Điền ID kênh chat của bạn vào đây nếu muốn bot thông báo mỗi khi khởi động/update
 const NOTIFICATION_CHANNEL_ID = "ĐIỀN_ID_KENH_VAO_ĐÂY"; 
@@ -17,7 +18,61 @@ app.listen(PORT, () => {
     console.log(`Web server đang chạy trên cổng ${PORT}`);
 });
 
-// 2. Khởi tạo Discord Client
+// 2. Kết nối MongoDB Atlas
+const mongoURI = process.env.MONGO_URI;
+
+if (mongoURI) {
+    mongoose.connect(mongoURI)
+        .then(() => console.log(' Đã kết nối thành công với MongoDB Atlas!'))
+        .catch(err => console.error(' Lỗi kết nối MongoDB:', err));
+} else {
+    console.log('⚠️ Không tìm thấy biến MONGO_URI trong môi trường!');
+}
+
+// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu thay cho data.json
+const userSchema = new mongoose.Schema({
+    userId: { type: String, required: true, unique: true },
+    coins: { type: Number, default: 100 },
+    lastDaily: { type: Number, default: 0 },
+    lastFish: { type: Number, default: 0 },
+    lastRob: { type: Number, default: 0 },
+    streak: { type: Number, default: 0 },
+    pet: {
+        type: Object,
+        default: null
+    }
+});
+
+const User = mongoose.model('User', userSchema);
+
+// Schema lưu trữ cấu hình chung (admins)
+const configSchema = new mongoose.Schema({
+    key: { type: String, required: true, unique: true },
+    admins: { type: Array, default: [] }
+});
+const Config = mongoose.model('Config', configSchema);
+
+// Hàm lấy dữ liệu user từ MongoDB (tương tự getUser cũ)
+async function getUser(userId) {
+    let user = await User.findOne({ userId });
+    if (!user) {
+        user = new User({ userId });
+        await user.save();
+    }
+    return user;
+}
+
+// Hàm lấy danh sách admin từ MongoDB
+async function getAdmins() {
+    let config = await Config.findOne({ key: 'global_config' });
+    if (!config) {
+        config = new Config({ key: 'global_config', admins: [] });
+        await config.save();
+    }
+    return config.admins;
+}
+
+// 3. Khởi tạo Discord Client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -30,51 +85,13 @@ const client = new Client({
 // Trạng thái hoạt động của bot
 let isBotActive = true; 
 
-// 3. Quản lý lưu trữ dữ liệu JSON (data.json)
-const DATA_FILE = './data.json';
-let db = {};
-
-if (fs.existsSync(DATA_FILE)) {
-    try {
-        db = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    } catch (err) {
-        db = { users: {}, admins: [] };
-    }
-} else {
-    db = { users: {}, admins: [] };
-}
-
-function saveDb() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
-}
-
-function getUser(userId) {
-    if (!db.users[userId]) {
-        db.users[userId] = { 
-            coins: 100, 
-            lastDaily: 0, 
-            lastFish: 0,
-            lastRob: 0,
-            streak: 0,
-            pet: null 
-        };
-        saveDb();
-    }
-    const u = db.users[userId];
-    if (u.lastDaily === undefined) u.lastDaily = 0;
-    if (u.lastFish === undefined) u.lastFish = 0;
-    if (u.lastRob === undefined) u.lastRob = 0;
-    if (u.streak === undefined) u.streak = 0;
-    if (u.pet === undefined) u.pet = null;
-    return u;
-}
-
 // Kiểm tra quyền Admin
-function isAdmin(userId, member) {
+async function isAdmin(userId, member) {
     const OWNER_ID = "950579308051697725"; 
     
     if (userId === OWNER_ID) return true;
-    if (db.admins && db.admins.includes(userId)) return true;
+    const admins = await getAdmins();
+    if (admins.includes(userId)) return true;
     if (member && member.permissions.has('Administrator')) return true;
     
     return false;
@@ -91,7 +108,7 @@ client.once('ready', async () => {
                 const updateEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
                     .setTitle('🚀 BOT ĐÃ CẬP NHẬT PHIÊN BẢN MỚI!')
-                    .setDescription(`Bot vừa được khởi động lại / cập nhật phiên bản thành công!\nGõ \`${PREFIX}menu\` để xem toàn bộ danh sách lệnh!`)
+                    .setDescription(`Bot vừa được khởi động lại / cập nhật phiên bản thành công trên MongoDB!\nGõ \`${PREFIX}menu\` để xem toàn bộ danh sách lệnh!`)
                     .setTimestamp();
 
                 await channel.send({ embeds: [updateEmbed] });
@@ -103,7 +120,7 @@ client.once('ready', async () => {
 });
 
 // Chào mừng thành viên mới
-client.on('guildMemberAdd', member => {
+client.on('guildMemberAdd', async member => {
     if (!isBotActive) return;
     const channel = member.guild.systemChannel;
     if (!channel) return;
@@ -114,9 +131,9 @@ client.on('guildMemberAdd', member => {
         .setDescription(`Chào ${member.user.username} đã đến với server! Bạn nhận được **100 xu** khởi nghiệp khi vào server nhé!`)
         .setThumbnail(member.user.displayAvatarURL());
     
-    const userData = getUser(member.id);
+    const userData = await getUser(member.id);
     userData.coins += 100;
-    saveDb();
+    await userData.save();
 
     channel.send({ embeds: [welcomeEmbed] });
 });
@@ -173,14 +190,14 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    const user = getUser(userId);
+    const user = await getUser(userId);
 
     // --- LỆNH .info ---
     if (command === 'info') {
         const infoEmbed = new EmbedBuilder()
             .setColor(0xF1C40F)
             .setTitle('🤖 THÔNG TIN HỆ THỐNG BOT')
-            .setDescription(`Bot được phát triển để phục vụ server.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây để truy cập](https://hina-long-pfbot.netlify.app/)\n\nGõ \`${PREFIX}menu\` để xem toàn bộ danh sách lệnh giải trí và quản trị!`)
+            .setDescription(`Bot được phát triển để phục vụ server (Đã tích hợp MongoDB Cloud).\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây để truy cập](https://hina-long-pfbot.netlify.app/)\n\nGõ \`${PREFIX}menu\` để xem toàn bộ danh sách lệnh giải trí và quản trị!`)
             .setTimestamp();
 
         return message.reply({ embeds: [infoEmbed] });
@@ -195,7 +212,7 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
                 { name: '💰 Kinh Tế & Điểm Danh', value: `\`${PREFIX}coins [@user]\` - Xem số dư xu\n\`${PREFIX}daily\` - Điểm danh chuỗi Streak nhận quà tăng dần\n\`${PREFIX}top\` - Xem bảng xếp hạng top 10`, inline: false },
-                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Quay Gacha ảnh anime (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
+                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh anime ngẫu nhiên từ mạng (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
                 { name: '🐾 Hệ Thống Thú Cưng (Pet)', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi pet\n\`${PREFIX}pet\` - Xem thông tin pet\n\`${PREFIX}pet feed\` - Cho pet ăn\n\`${PREFIX}pet work\` - Sai pet đi kiếm xu`, inline: false },
                 { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` / \`${PREFIX}unban <ID>\` - Ban/Unban\n\`${PREFIX}mute @user\` / \`${PREFIX}unmute @user\` - Mute/Unmute`, inline: false },
                 { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\` - Tắt/Bật bot\n\`${PREFIX}xu reset @user\` - Reset xu\n\`${PREFIX}admin add/remove @user\` - Quản lý Admin`, inline: false }
@@ -209,7 +226,7 @@ client.on('messageCreate', async message => {
     // --- Xem số dư ---
     if (command === 'coins' || command === 'balance') {
         const targetUser = message.mentions.users.first() || message.author;
-        const targetData = getUser(targetUser.id);
+        const targetData = await getUser(targetUser.id);
         const formattedCoins = Number(targetData.coins).toLocaleString('vi-VN');
         
         return message.reply(`💰 Người dùng **${targetUser.username}** đang có **${formattedCoins} xu** trong ví.`);
@@ -242,21 +259,19 @@ client.on('messageCreate', async message => {
         const totalReward = baseReward + streakBonus;
 
         user.coins += totalReward;
-        saveDb();
+        await user.save();
 
         return message.reply(`🔥 Điểm danh thành công! Chuỗi Streak: **${user.streak} ngày liên tiếp**.\n🎁 Nhận được **${totalReward} xu** (Đã cộng bonus streak). Tổng ví: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
     // --- Bảng xếp hạng ---
     if (command === 'top') {
-        const sorted = Object.entries(db.users)
-            .sort((a, b) => b[1].coins - a[1].coins)
-            .slice(0, 10);
+        const topUsers = await User.find().sort({ coins: -1 }).limit(10);
         
         let text = "🏆 **TOP 10 NGƯỜI GIÀU NHẤT SERVER:**\n";
-        for (let i = 0; i < sorted.length; i++) {
-            const memberObj = await client.users.fetch(sorted[i][0]).catch(() => ({ username: "Người dùng ẩn danh" }));
-            const userCoins = Number(sorted[i][1].coins).toLocaleString('vi-VN');
+        for (let i = 0; i < topUsers.length; i++) {
+            const memberObj = await client.users.fetch(topUsers[i].userId).catch(() => ({ username: "Người dùng ẩn danh" }));
+            const userCoins = Number(topUsers[i].coins).toLocaleString('vi-VN');
             text += `**${i + 1}.** ${memberObj.username} - **${userCoins} xu**\n`;
         }
         return message.reply(text);
@@ -275,22 +290,25 @@ client.on('messageCreate', async message => {
             return message.reply(`Cách dùng: \`${PREFIX}admin add @user\` hoặc \`${PREFIX}admin remove @user\``);
         }
 
-        if (!db.admins) db.admins = [];
+        let config = await Config.findOne({ key: 'global_config' });
+        if (!config) {
+            config = new Config({ key: 'global_config', admins: [] });
+        }
 
         if (action === 'add') {
-            if (db.admins.includes(targetUser.id)) {
+            if (config.admins.includes(targetUser.id)) {
                 return message.reply(`⚠️ **${targetUser.username}** đã là Admin từ trước rồi!`);
             }
-            db.admins.push(targetUser.id);
-            saveDb();
+            config.admins.push(targetUser.id);
+            await config.save();
             return message.reply(`✅ Đã cấp quyền Admin thành công cho **${targetUser.username}**!`);
         } else if (action === 'remove') {
-            const index = db.admins.indexOf(targetUser.id);
+            const index = config.admins.indexOf(targetUser.id);
             if (index === -1) {
                 return message.reply(`⚠️ **${targetUser.username}** không có trong danh sách Admin!`);
             }
-            db.admins.splice(index, 1);
-            saveDb();
+            config.admins.splice(index, 1);
+            await config.save();
             return message.reply(`✅ Đã tước quyền Admin của **${targetUser.username}**!`);
         }
     }
@@ -306,39 +324,38 @@ client.on('messageCreate', async message => {
             const target = message.mentions.users.first();
             if (!target) return message.reply(`Cách dùng: \`${PREFIX}xu reset @người_dùng\``);
 
-            const targetUser = getUser(target.id);
+            const targetUser = await getUser(target.id);
             targetUser.coins = 0;
-            saveDb();
+            await targetUser.save();
             return message.reply(`🔄 Đã reset số dư của **${target.username}** về **0 xu** thành công!`);
         }
 
-        if (!isAdmin(userId, message.member)) {
+        if (!await isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh này!');
         }
 
         const amount = parseInt(args[1]);
         const target = message.mentions.users.first() || message.author;
+        const targetUser = await getUser(target.id);
 
         if (subAction === 'add') {
             if (isNaN(amount)) return message.reply(`Cách dùng: \`${PREFIX}xu add <số lượng> @người_dùng\``);
-            const targetUser = getUser(target.id);
             targetUser.coins += amount;
-            saveDb();
+            await targetUser.save();
             return message.reply(`✅ Đã cộng **${amount.toLocaleString('vi-VN')} xu** cho **${target.username}**. Tổng ví: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
         }
 
         if (subAction === 'sub') {
             if (isNaN(amount) || amount <= 0) return message.reply(`Cách dùng: \`${PREFIX}xu sub <số lượng> @người_dùng\``);
-            const targetUser = getUser(target.id);
             targetUser.coins = Math.max(0, targetUser.coins - amount);
-            saveDb();
+            await targetUser.save();
             return message.reply(`✅ Đã trừ **${amount.toLocaleString('vi-VN')} xu** của **${target.username}**. Tổng ví còn lại: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
         }
     }
 
     // --- Lệnh Ban thành viên ---
     if (command === 'ban') {
-        if (!isAdmin(userId, message.member)) {
+        if (!await isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin!');
         }
 
@@ -359,7 +376,7 @@ client.on('messageCreate', async message => {
 
     // --- Lệnh Unban thành viên bằng ID ---
     if (command === 'unban') {
-        if (!isAdmin(userId, message.member)) {
+        if (!await isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin!');
         }
 
@@ -376,7 +393,7 @@ client.on('messageCreate', async message => {
 
     // --- Lệnh Mute thành viên ---
     if (command === 'mute') {
-        if (!isAdmin(userId, message.member)) {
+        if (!await isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin!');
         }
 
@@ -393,7 +410,7 @@ client.on('messageCreate', async message => {
 
     // --- Lệnh Unmute thành viên ---
     if (command === 'unmute') {
-        if (!isAdmin(userId, message.member)) {
+        if (!await isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin!');
         }
 
@@ -438,7 +455,6 @@ client.on('messageCreate', async message => {
         }
 
         user.coins -= cost;
-        saveDb();
 
         const fishes = [
             { name: '🗑️ Chiếc giày rách', price: 10, chance: 40 },
@@ -461,12 +477,12 @@ client.on('messageCreate', async message => {
         }
 
         user.coins += caughtFish.price;
-        saveDb();
+        await user.save();
 
         return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // --- Gacha ảnh anime ---
+    // --- Gacha ảnh anime (.gai - Đã tích hợp gọi API ảnh ngẫu nhiên từ internet) ---
     if (command === 'gai') {
         const cost = 20;
         if (user.coins < cost) {
@@ -474,26 +490,30 @@ client.on('messageCreate', async message => {
         }
 
         user.coins -= cost;
-        saveDb();
+        await user.save();
 
-        const animeImages = [
-            "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800",
-            "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800",
-            "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800",
-            "https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=800",
-            "https://images.unsplash.com/photo-1563089145-599997674d42?w=800",
-            "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=800"
-        ];
+        try {
+            const loadingMsg = await message.reply('✨ Đang triệu hồi ảnh anime đẹp cho bạn...');
 
-        const randomImg = animeImages[Math.floor(Math.random() * animeImages.length)];
+            // Gọi API công khai lấy ảnh anime ngẫu nhiên từ mạng
+            const response = await axios.get('https://api.waifu.pics/sfw/waifu');
+            const imageUrl = response.data.url;
 
-        const gachaEmbed = new EmbedBuilder()
-            .setColor(0xFF00FF)
-            .setTitle(`✨ Kết quả Gacha của ${message.author.username}`)
-            .setDescription(`Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**`)
-            .setImage(randomImg);
+            const gachaEmbed = new EmbedBuilder()
+                .setColor(0xFF00FF)
+                .setTitle(`✨ Kết quả Gacha của ${message.author.username}`)
+                .setDescription(`Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**`)
+                .setImage(imageUrl)
+                .setTimestamp();
 
-        return message.reply({ embeds: [gachaEmbed] });
+            return loadingMsg.edit({ content: null, embeds: [gachaEmbed] });
+        } catch (error) {
+            console.error('Lỗi khi gọi API ảnh:', error);
+            // Hoàn lại xu nếu lỗi API
+            user.coins += cost;
+            await user.save();
+            return message.reply('❌ Đã xảy ra lỗi khi tải ảnh từ mạng, xu của bạn đã được hoàn lại!');
+        }
     }
 
     // --- Tài xỉu (.xx) ---
@@ -530,11 +550,11 @@ client.on('messageCreate', async message => {
 
         if (choice === result) {
             user.coins += (bet * 2);
-            saveDb();
+            await user.save();
             return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng x2! Nhận được **${(bet * 2).toLocaleString('vi-VN')} xu**!`);
         } else {
             user.coins -= bet;
-            saveDb();
+            await user.save();
             return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**.`);
         }
     }
@@ -556,7 +576,7 @@ client.on('messageCreate', async message => {
             return message.reply('❌ Bạn cần ít nhất **50 xu** phí lót đường!');
         }
 
-        const targetUser = getUser(targetMember.id);
+        const targetUser = await getUser(targetMember.id);
         if (targetUser.coins < 50) {
             return message.reply(`❌ Mục tiêu quá nghèo, tha cho họ đi!`);
         }
@@ -568,12 +588,13 @@ client.on('messageCreate', async message => {
             const stolenAmount = Math.floor(Math.random() * (targetUser.coins * 0.3)) + 10; 
             targetUser.coins -= stolenAmount;
             user.coins += stolenAmount;
-            saveDb();
+            await targetUser.save();
+            await user.save();
             return message.reply(`🥷 Cướp thành công **${stolenAmount.toLocaleString('vi-VN')} xu** từ **${targetMember.username}**!`);
         } else {
             const fine = 40; 
             user.coins = Math.max(0, user.coins - fine);
-            saveDb();
+            await user.save();
             return message.reply(`🚨 Bị công an tóm cổ! Phạt mất **${fine} xu**.`);
         }
     }
@@ -592,17 +613,15 @@ client.on('messageCreate', async message => {
         }
 
         user.coins -= bet;
-        saveDb();
-
         const winningNum = String(Math.floor(Math.random() * 100)).padStart(2, '0');
 
         if (choiceNum === winningNum) {
             const reward = bet * 70;
             user.coins += reward;
-            saveDb();
+            await user.save();
             return message.reply(`🎰 Kết quả: **[${winningNum}]**. Trúng lô húp **${reward.toLocaleString('vi-VN')} xu**!`);
         } else {
-            saveDb();
+            await user.save();
             return message.reply(`🎰 Kết quả: **[${winningNum}]**. Xịt lô, mất **${bet.toLocaleString('vi-VN')} xu**!`);
         }
     }
@@ -621,7 +640,7 @@ client.on('messageCreate', async message => {
 
             user.coins -= cost;
             user.pet = { name: petName, level: 1, exp: 0, lastFed: 0, lastWork: 0 };
-            saveDb();
+            await user.save();
             return message.reply(`🎉 Nhận nuôi thành công pet **${petName}**!`);
         }
 
@@ -629,7 +648,8 @@ client.on('messageCreate', async message => {
             return message.reply(`🐾 Bạn chưa có thú cưng! Dùng \`${PREFIX}pet buy <tên>\` (200 xu).`);
         }
 
-        const p = user.pet;
+        // Lấy bản sao của object pet để Mongoose nhận diện thay đổi
+        let p = { ...user.pet };
 
         if (subAction === 'feed') {
             const feedCooldown = 4 * 60 * 60 * 1000; 
@@ -642,10 +662,12 @@ client.on('messageCreate', async message => {
             if (p.exp >= p.level * 50) {
                 p.level += 1;
                 p.exp = 0;
-                saveDb();
+                user.pet = p;
+                await user.save();
                 return message.reply(`🎉 Pet lên **Level ${p.level}**!`);
             }
-            saveDb();
+            user.pet = p;
+            await user.save();
             return message.reply(`🍖 Đã cho pet ăn!`);
         }
 
@@ -658,7 +680,8 @@ client.on('messageCreate', async message => {
             p.lastWork = now;
             const earned = p.level * 25 + Math.floor(Math.random() * 20);
             user.coins += earned;
-            saveDb();
+            user.pet = p;
+            await user.save();
             return message.reply(`💼 Pet kiếm về **${earned} xu**!`);
         }
 
@@ -686,7 +709,7 @@ client.on('messageCreate', async message => {
 
         if (guess === currentSecret) {
             user.coins += 30;
-            saveDb();
+            await user.save();
             message.reply(`🏆 Chính xác! Nhận **30 xu**!`);
             secretNumbers.delete(message.channel.id);
         } else if (guess < currentSecret) {
@@ -698,7 +721,7 @@ client.on('messageCreate', async message => {
 
     // --- Xóa chat ---
     if (command === 'clear') {
-        if (!isAdmin(userId, message.member)) return message.reply('Không có quyền!');
+        if (!await isAdmin(userId, message.member)) return message.reply('Không có quyền!');
         const amount = parseInt(args[0]);
         if (isNaN(amount) || amount < 1 || amount > 100) return message.reply('Nhập từ 1 đến 100.');
         await message.channel.bulkDelete(amount + 1, true).catch(() => {});
@@ -708,7 +731,7 @@ client.on('messageCreate', async message => {
     }
 
     if (command === 'hello') {
-        return message.reply('Chào bạn! Bot vẫn đang hoạt động mượt mà!');
+        return message.reply('Chào bạn! Bot vẫn đang hoạt động mượt mà với MongoDB!');
     }
 });
 

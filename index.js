@@ -23,8 +23,8 @@ const mongoURI = process.env.MONGO_URI;
 
 if (mongoURI) {
     mongoose.connect(mongoURI)
-        .then(() => console.log(' Đã kết nối thành công với MongoDB Atlas!'))
-        .catch(err => console.error(' Lỗi kết nối MongoDB:', err));
+        .then(() => console.log('✅ Đã kết nối thành công với MongoDB Atlas!'))
+        .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err));
 } else {
     console.log('⚠️ Không tìm thấy biến MONGO_URI trong môi trường!');
 }
@@ -495,8 +495,12 @@ client.on('messageCreate', async message => {
         try {
             const loadingMsg = await message.reply('✨ Đang triệu hồi waifu anime thật sự cho bạn...');
 
-            // Dùng API nekos.best để lấy ảnh nhân vật anime chính hãng, tránh triệt để lỗi Baby Yoda
-            const response = await axios.get('https://nekos.best/api/v2/neko');
+            // Thêm User-Agent vào headers để chống lỗi từ chối kết nối từ API nekos.best
+            const response = await axios.get('https://nekos.best/api/v2/neko', {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
             const imageUrl = response.data.results[0].url;
 
             const gachaEmbed = new EmbedBuilder()
@@ -734,4 +738,4 @@ client.on('messageCreate', async message => {
 });
 
 // 5. Đăng nhập bot
-client.login(process.env.DISCORD_TOKEN); 
+client.login(process.env.DISCORD_TOKEN);

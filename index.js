@@ -166,8 +166,8 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
                 { name: '💰 Hệ Thống Tiền Tệ', value: `\`${PREFIX}coins [@user]\` - Xem số dư xu\n\`${PREFIX}daily\` - Điểm danh hằng ngày nhận 50 xu\n\`${PREFIX}top\` - Xem bảng xếp hạng top 10`, inline: false },
-                { name: '🎮 Mini-Game & Giải Trí', value: `\`${PREFIX}gai\` - Quay Gacha ảnh anime (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu> <tai/xiu>\` - Chơi Tài Xỉu (Thắng x2)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
-                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` - Ban thành viên\n\`${PREFIX}unban <ID>\` - Gỡ ban\n\`${PREFIX}mute @user\` - Mute 24h\n\`${PREFIX}unmute @user\` - Gỡ mute`, inline: false },
+                { name: '🎮 Mini-Game & Giải Trí', value: `\`${PREFIX}gai\` - Quay Gacha ảnh anime (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Chơi Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
+                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số> / all\` - Xóa tin nhắn (hỗ trợ xóa tất cả)\n\`${PREFIX}ban @user\` - Ban thành viên\n\`${PREFIX}unban <ID>\` - Gỡ ban\n\`${PREFIX}mute @user\` - Mute 24h\n\`${PREFIX}unmute @user\` - Gỡ mute`, inline: false },
                 { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\` - Tắt/Bật bot\n\`${PREFIX}xu reset @user\` - Reset xu\n\`${PREFIX}admin add/remove @user\` - Quản lý Admin`, inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
@@ -452,13 +452,21 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [gachaEmbed] });
     }
 
-    // --- Tài xỉu (.xx) THẮNG X2 ---
+    // --- Tài xỉu (.xx) THẮNG X2 & HỖ TRỢ .xx all ---
     if (command === 'xx') {
-        const bet = parseInt(args[0]);
-        const choice = args[1] ? args[1].toLowerCase() : '';
+        let bet;
+        let choice;
+
+        if (args[0] && args[0].toLowerCase() === 'all') {
+            bet = user.coins;
+            choice = args[1] ? args[1].toLowerCase() : '';
+        } else {
+            bet = parseInt(args[0]);
+            choice = args[1] ? args[1].toLowerCase() : '';
+        }
 
         if (isNaN(bet) || bet <= 0) {
-            return message.reply(`Cách chơi: \`${PREFIX}xx <số xu cược> <tai/xiu>\``);
+            return message.reply(`Cách chơi: \`${PREFIX}xx <số xu cược / all> <tai/xiu>\`\nVí dụ tất tay: \`${PREFIX}xx all tai\``);
         }
 
         if (user.coins < bet) {
@@ -466,7 +474,7 @@ client.on('messageCreate', async message => {
         }
 
         if (choice !== 'tai' && choice !== 'xiu') {
-            return message.reply('Vui lòng chọn đúng cửa cược là `tai` hoặc `xiu`!');
+            return message.reply('Vui lòng chọn đúng cửa cược là `tai` hoặc `xiu`! (Ví dụ: `.xx all tai` hoặc `.xx 100 xiu`)');
         }
 
         const d1 = Math.floor(Math.random() * 6) + 1;
@@ -511,11 +519,34 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Xóa chat ---
+    // --- Xóa chat (.clear <số> hoặc .clear all) ---
     if (command === 'clear') {
         if (!isAdmin(userId, message.member)) return message.reply('Bạn không có quyền!');
+        
+        if (args[0] && args[0].toLowerCase() === 'all') {
+            try {
+                // Xóa tin nhắn lệnh trước để dọn sạch
+                await message.delete().catch(() => {});
+                
+                // Lấy tất cả tin nhắn trong kênh (Discord giới hạn fetch tối đa 100 tin nhắn mỗi lần bulkDelete)
+                let fetched;
+                do {
+                    fetched = await message.channel.messages.fetch({ limit: 100 });
+                    if (fetched.size > 0) {
+                        await message.channel.bulkDelete(fetched, true).catch(() => {});
+                    }
+                } while (fetched.size >= 2);
+
+                const notify = await message.channel.send(`🧹 Đã dọn sạch toàn bộ tin nhắn trong kênh này!`);
+                setTimeout(() => notify.delete().catch(() => {}), 3000);
+                return;
+            } catch (err) {
+                return message.reply('❌ Có lỗi khi xóa toàn bộ tin nhắn (Discord chỉ cho phép xóa tin nhắn dưới 14 ngày tuổi).');
+            }
+        }
+
         const amount = parseInt(args[0]);
-        if (isNaN(amount) || amount < 1 || amount > 100) return message.reply('Nhập số từ 1 đến 100.');
+        if (isNaN(amount) || amount < 1 || amount > 100) return message.reply('Nhập số từ 1 đến 100 hoặc dùng `.clear all`.');
         
         await message.channel.bulkDelete(amount + 1, true).catch(() => {});
         const notifyMsg = await message.channel.send(`Đã xóa ${amount} tin nhắn!`);

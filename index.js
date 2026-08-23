@@ -477,9 +477,9 @@ client.on('messageCreate', async message => {
         const result = total >= 11 ? 'tai' : 'xiu';
 
         if (choice === result) {
-            user.coins += bet; // Thắng nhận thêm đúng bằng số tiền cược (x2 tổng nhận)
+            user.coins += (bet * 2); // Thắng nhận x2 tiền cược
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng x2! Nhận được **${bet.toLocaleString('vi-VN')} xu**! Số dư mới: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng x2! Nhận được **${(bet * 2).toLocaleString('vi-VN')} xu**! Số dư mới: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
         } else {
             user.coins -= bet; // Thua mất tiền cược
             saveDb();

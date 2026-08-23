@@ -29,10 +29,10 @@ if (mongoURI) {
     console.log('⚠️ Không tìm thấy biến MONGO_URI trong môi trường!');
 }
 
-// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu (Đơn vị VNĐ)
+// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
-    coins: { type: Number, default: 50000 }, // Khởi nghiệp 50k VNĐ
+    coins: { type: Number, default: 50000 }, 
     bank: { type: Number, default: 0 },
     lastBankInterest: { type: Number, default: Date.now() },
     lastDaily: { type: Number, default: 0 },
@@ -42,6 +42,11 @@ const userSchema = new mongoose.Schema({
     pet: {
         type: Object,
         default: null
+    },
+    marriage: { type: String, default: null }, // ID người kết hôn
+    company: {
+        type: Object,
+        default: null // { invested: Số tiền, startTime: Thời gian mở }
     }
 });
 
@@ -122,8 +127,8 @@ client.once('ready', async () => {
             if (channel && channel.isTextBased()) {
                 const updateEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
-                    .setTitle('🚀 BOT ĐÃ CẬP NHẬT HỆ THỐNG KINH TẾ VNĐ!')
-                    .setDescription(`Toàn bộ mệnh giá, giá cá, ngân hàng và lương pet đi làm đã được tối ưu!\nGõ \`${PREFIX}menu\` để xem chi tiết!`)
+                    .setTitle('🚀 BOT ĐÃ CẬP NHẬT HỆ THỐNG ĐẦY ĐỦ!')
+                    .setDescription(`Đã phục hồi toàn bộ menu và bổ sung Kết Hôn + Mở Công Ty!\nGõ \`.menu\` để xem chi tiết!`)
                     .setTimestamp();
 
                 await channel.send({ embeds: [updateEmbed] });
@@ -206,17 +211,24 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [infoEmbed] });
     }
 
-    // --- BẢNG MENU HƯỚNG DẪN (VNĐ) ---
+    if (command === 'hello') {
+        return message.reply('Chào bạn! Bot đang hoạt động mượt mà với đầy đủ tính năng!');
+    }
+
+    // --- BẢNG MENU GỐC ĐẦY ĐỦ ---
     if (command === 'help' || command === 'menu') {
         const menuEmbed = new EmbedBuilder()
             .setColor(0x00AE86)
-            .setTitle('📖 BẢNG HƯỚNG DẪN LỆNH - KINH TẾ VNĐ')
-            .setDescription(`Danh sách lệnh với đơn vị **VNĐ**:`)
+            .setTitle('📖 BẢNG HƯỚNG DẪN LỆNH - BOT BÉO FAT ASS')
+            .setDescription(`Dưới đây là danh sách lệnh đầy đủ (sử dụng tiền tố \`${PREFIX}\`):`)
             .addFields(
-                { name: '💰 Tài Chính & Ngân Hàng', value: `\`${PREFIX}coins [@user]\` - Xem ví & ngân hàng\n\`${PREFIX}deposit <số tiền / all>\` - Gửi tiết kiệm (Lãi 10%/h)\n\`${PREFIX}withdraw <số tiền / all>\` - Rút tiền\n\`${PREFIX}daily\` - Nhận lương điểm danh\n\`${PREFIX}top\` - Bảng xếp hạng tài sản`, inline: false },
-                { name: '🎮 Giải Trí & Kiếm Tiền', value: `\`${PREFIX}gai\` - Gacha ảnh waifu (5.000 VNĐ)\n\`${PREFIX}cauca\` - Mua mồi câu cá (50.000 VNĐ)\n\`${PREFIX}caucalist\` - Xem bảng giá hải sản thực tế\n\`${PREFIX}xx <số tiền / all> <tai/xiu>\` - Tài Xỉu\n\`${PREFIX}rob @user\` - Trấn tiền\n\`${PREFIX}lode <số 00-99> <số tiền>\` - Lô đề`, inline: false },
-                { name: '🐾 Nuôi Thú Cưng', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi (100.000 VNĐ)\n\`${PREFIX}pet\` - Xem pet\n\`${PREFIX}pet feed\` - Cho ăn\n\`${PREFIX}pet work\` - Pet đi làm kiếm tiền khủng\n\`${PREFIX}pet sell\` - Bán pet nhận ngẫu nhiên tới 500k VNĐ`, inline: false },
-                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}vnd add/sub <số tiền> @user\`\n\`${PREFIX}clear <số>\` | \`${PREFIX}ban\` | \`${PREFIX}mute\``, inline: false }
+                { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
+                { name: '💰 Kinh Tế, Ngân Hàng & Điểm Danh', value: `\`${PREFIX}coins [@user]\` - Xem ví và ngân hàng\n\`${PREFIX}deposit <số tiền / all>\` - Gửi tiền vào ngân hàng (Lãi 10%/h)\n\`${PREFIX}withdraw <số tiền / all>\` - Rút tiền từ ngân hàng\n\`${PREFIX}daily\` - Điểm danh chuỗi Streak nhận quà\n\`${PREFIX}top\` - Xem bảng xếp hạng`, inline: false },
+                { name: '💍 Gia Đình & Công Ty Mới', value: `\`${PREFIX}marry @user\` - Cầu hôn kết hôn\n\`${PREFIX}divorce\` - Ly hôn\n\`${PREFIX}company open <số tiền>\` - Mở công ty (Tối thiểu 10 Tỉ, lãi 200%/h, rủi ro 3% cook/phút)\n\`${PREFIX}company status\` - Kiểm tra công ty\n\`${PREFIX}company claim\` - Rút vốn và chốt lãi`, inline: false },
+                { name: '🎲 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh waifu ngẫu nhiên từ kho GitHub (5k VNĐ)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (50k VNĐ)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số tiền / all> <tai/xiu>\` - Tài Xỉu\n\`${PREFIX}rob @user\` - Cướp tiền\n\`${PREFIX}lode <00-99> <số tiền>\` - Xổ số lô đề\n\`${PREFIX}game\` / \`${PREFIX}doan <số>\` - Trò chơi đoán số`, inline: false },
+                { name: '🐾 Hệ Thống Thú Cưng (Pet)', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi pet (100k VNĐ)\n\`${PREFIX}pet\` - Xem thông tin pet\n\`${PREFIX}pet feed\` - Cho pet ăn\n\`${PREFIX}pet work\` - Sai pet kiếm tiền\n\`${PREFIX}pet sell\` - Bán pet nhận ngẫu nhiên tới 500k VNĐ`, inline: false },
+                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}vnd add <số> @user\` - Bơm tiền\n\`${PREFIX}vnd sub <số> @user\` - Trừ tiền\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` / \`${PREFIX}unban <ID>\`\n\`${PREFIX}mute @user\` / \`${PREFIX}unmute @user\``, inline: false },
+                { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\`\n\`${PREFIX}vnd reset @user\`\n\`${PREFIX}admin add/remove @user\``, inline: false }
             )
             .setTimestamp();
 
@@ -308,6 +320,138 @@ client.on('messageCreate', async message => {
             text += `**${i + 1}.** ${memberObj.username} - Tổng tài sản: **${Number(totalWealth).toLocaleString('vi-VN')} VNĐ**\n`;
         }
         return message.reply(text);
+    }
+
+    // --- HỆ THỐNG KẾT HÔN (.marry, .divorce) ---
+    if (command === 'marry') {
+        const target = message.mentions.users.first();
+        if (!target) return message.reply(`Cách dùng: \`${PREFIX}marry @user\``);
+        if (target.id === userId) return message.reply('❌ Không thể tự kết hôn với chính mình!');
+        if (target.bot) return message.reply('❌ Không thể kết hôn với bot!');
+
+        if (user.marriage) return message.reply('⚠️ Bạn đã có gia đình rồi, muốn cưới người khác phải ly hôn trước!');
+        const targetUser = await getUser(target.id);
+        if (targetUser.marriage) return message.reply(`❌ **${target.username}** đã có gia đình rồi!`);
+
+        const proposalMsg = await message.reply(`💍 <@${target.id}>, bạn có đồng ý kết hôn với **${message.author.username}** không? Phản hồi bằng \`y\` (Đồng ý) hoặc \`n\` (Từ chối) trong 30 giây!`);
+        
+        const filter = response => response.author.id === target.id;
+        try {
+            const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] });
+            const answer = collected.first().content.toLowerCase();
+
+            if (answer === 'y' || answer === 'yes') {
+                user.marriage = target.id;
+                targetUser.marriage = userId;
+                await user.save();
+                await targetUser.save();
+                return message.reply(`🎉 Chúc mừng cặp đôi **${message.author.username}** và **${target.username}** đã chính thức về chung một nhà! 💒`);
+            } else {
+                return message.reply(`💔 Rất tiếc, **${target.username}** đã từ chối lời cầu hôn.`);
+            }
+        } catch (err) {
+            return message.reply(`⏰ Đã quá thời gian suy nghĩ, lời cầu hôn đã hết hiệu lực.`);
+        }
+    }
+
+    if (command === 'divorce') {
+        if (!user.marriage) return message.reply('❌ Bạn hiện tại đang độc thân mà!');
+        const partnerId = user.marriage;
+        const partnerData = await getUser(partnerId);
+
+        user.marriage = null;
+        if (partnerData) {
+            partnerData.marriage = null;
+            await partnerData.save();
+        }
+        await user.save();
+        return message.reply(`📜 Bạn đã ly hôn thành công và chính thức quay lại kiếp độc thân.`);
+    }
+
+    // --- HỆ THỐNG MỞ CÔNG TY (.company open, .company status, .company claim) ---
+    if (command === 'company' || command === 'ct') {
+        const subAction = args[0] ? args[0].toLowerCase() : '';
+
+        if (subAction === 'open') {
+            if (user.company) return message.reply(`⚠️ Bạn đang điều hành một công ty rồi! Dùng \`${PREFIX}company status\` để kiểm tra.`);
+            const amount = parseInt(args[1]);
+            const MIN_CAPITAL = 10000000000; // 10 Tỉ VNĐ
+
+            if (isNaN(amount) || amount < MIN_CAPITAL) {
+                return message.reply(`❌ Số vốn tối thiểu để mở công ty là **10.000.000.000 VNĐ** (10 Tỉ).\nCách dùng: \`${PREFIX}company open <số tiền đầu tư>\``);
+            }
+            if (user.coins < amount) {
+                return message.reply(`❌ Ví của bạn không đủ **${amount.toLocaleString('vi-VN')} VNĐ** để khởi nghiệp!`);
+            }
+
+            user.coins -= amount;
+            user.company = {
+                invested: amount,
+                startTime: Date.now()
+            };
+            await user.save();
+
+            return message.reply(`🏢 Khởi nghiệp thành công với số vốn **${amount.toLocaleString('vi-VN')} VNĐ**!\n⚠️ *Lưu ý:* Mỗi phút công ty hoạt động sẽ có **3% nguy cơ đứt chuỗi vốn và "cook" sạch tiền**, nhưng lãi nhận được là **200% mỗi giờ**! Gõ \`${PREFIX}company claim\` để thu hồi vốn và lãi.`);
+        }
+
+        if (subAction === 'status') {
+            if (!user.company) return message.reply(`❌ Bạn chưa mở công ty nào cả! Dùng \`${PREFIX}company open <số tiền>\` để bắt đầu.`);
+            
+            const now = Date.now();
+            const minutesPassed = Math.floor((now - user.company.startTime) / (60 * 1000));
+            const hoursPassed = (now - user.company.startTime) / (60 * 60 * 1000);
+            
+            // Lãi 200% mỗi giờ
+            const potentialProfit = Math.floor(user.company.invested * 2.0 * hoursPassed);
+            const totalPotential = user.company.invested + potentialProfit;
+
+            return message.reply(`📊 **THÔNG TIN CÔNG TY CỦA BẠN:**\n` +
+                                 `💰 Vốn đầu tư ban đầu: **${user.company.invested.toLocaleString('vi-VN')} VNĐ**\n` +
+                                 `⏱️ Thời gian hoạt động: **${minutesPassed} phút** (${hoursPassed.toFixed(2)} giờ)\n` +
+                                 `💵 Lợi nhuận dự kiến (200%/h): **+${potentialProfit.toLocaleString('vi-VN')} VNĐ** (Tổng nhận: **${totalPotential.toLocaleString('vi-VN')} VNĐ**)\n` +
+                                 `⚠️ Rủi ro sập tiệm: **3% mỗi phút**\n` +
+                                 `💡 Gõ \`${PREFIX}company claim\` để rút tiền bất cứ lúc nào!`);
+        }
+
+        if (subAction === 'claim') {
+            if (!user.company) return message.reply(`❌ Bạn đang không điều hành công ty nào!`);
+
+            const now = Date.now();
+            const minutesPassed = Math.floor((now - user.company.startTime) / (60 * 1000));
+            
+            // Kiểm tra rủi ro "cook" (3% cơ hội cook mỗi phút)
+            let isCooked = false;
+            for (let i = 0; i < minutesPassed; i++) {
+                if (Math.random() < 0.03) {
+                    isCooked = true;
+                    break;
+                }
+            }
+
+            if (isCooked) {
+                const lostMoney = user.company.invested;
+                user.company = null;
+                await user.save();
+                return message.reply(`💥 **TIN XẤU!** Công ty của bạn đã bất ngờ đứt chuỗi vốn sau ${minutesPassed} phút hoạt động, bị phá sản và **COOK** hoàn toàn! Bạn mất trắng **${lostMoney.toLocaleString('vi-VN')} VNĐ** vốn đầu tư. 📉`);
+            }
+
+            // Tính tiền nhận về: Vốn + Lãi (200% mỗi giờ)
+            const invested = user.company.invested;
+            const hoursPassed = (now - user.company.startTime) / (60 * 60 * 1000);
+            const profit = Math.floor(invested * 2.0 * hoursPassed);
+            const totalReturn = invested + profit; 
+
+            user.coins += totalReturn;
+            user.company = null;
+            await user.save();
+
+            return message.reply(`🎉 Chốt đơn thành công! Công ty sống sót qua **${minutesPassed} phút**.\n💰 Bạn nhận về vốn lẫn lãi khủng: **${totalReturn.toLocaleString('vi-VN')} VNĐ** vào ví! 🚀`);
+        }
+
+        return message.reply(`📖 Hướng dẫn lệnh Công Ty:\n` +
+                             `• \`${PREFIX}company open <số tiền>\` - Mở công ty (Tối thiểu 10 tỉ VNĐ, lãi 200%/giờ)\n` +
+                             `• \`${PREFIX}company status\` - Xem tình trạng công ty\n` +
+                             `• \`${PREFIX}company claim\` - Rút vốn và nhận lãi (Né rủi ro 3% cook mỗi phút)`);
     }
 
     if (command === 'admin') {
@@ -417,7 +561,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- BẢNG GIÁ CÁ (Giá thực tế VNĐ) ---
+    // --- BẢNG GIÁ CÁ ---
     if (command === 'caucalist' || command === 'listcau') {
         const listEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
@@ -438,7 +582,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [listEmbed] });
     }
 
-    // --- Câu cá thực tế (Phí 50k VNĐ) ---
+    // --- Câu cá thực tế ---
     if (command === 'cauca') {
         const cost = 50000;
         if (user.coins < cost) return message.reply(`🎣 Cần ít nhất **${cost.toLocaleString('vi-VN')} VNĐ** để mua mồi câu!`);
@@ -471,7 +615,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**! Bán thu về **${caughtFish.price.toLocaleString('vi-VN')} VNĐ**.`);
     }
 
-    // --- Gacha ảnh GitHub (Phí 5k VNĐ) ---
+    // --- Gacha ảnh GitHub ---
     if (command === 'gai') {
         const cost = 5000;
         if (user.coins < cost) return message.reply(`Bạn cần **${cost.toLocaleString('vi-VN')} VNĐ** để xem ảnh.`);
@@ -605,7 +749,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Thú cưng (Pet buy 100k, sell random tới 500k, work buff mạnh) ---
+    // --- Thú cưng (Pet) ---
     if (command === 'pet') {
         const subAction = args[0];
 
@@ -659,7 +803,6 @@ client.on('messageCreate', async message => {
             if (now - p.lastWork < workCooldown) return message.reply(`⏳ Pet đang mệt, hãy đợi thêm chút nữa nhé.`);
             p.lastWork = now;
             
-            // Đã buff mạnh tiền đi làm (Level * 200k + random tới 150k + 50k)
             const earned = p.level * 200000 + Math.floor(Math.random() * 150000) + 50000; 
             user.coins += earned;
             user.pet = p;
@@ -707,10 +850,6 @@ client.on('messageCreate', async message => {
         const notifyMsg = await message.channel.send(`Đã xóa ${amount} tin nhắn!`);
         setTimeout(() => notifyMsg.delete().catch(() => {}), 3000);
         return;
-    }
-
-    if (command === 'hello') {
-        return message.reply('Chào bạn! Bot đang hoạt động mượt mà với hệ thống VNĐ chuẩn thực tế!');
     }
 });
 

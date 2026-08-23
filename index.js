@@ -125,7 +125,7 @@ client.once('ready', async () => {
             if (channel && channel.isTextBased()) {
                 const updateEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
-                    .setTitle('🚀 BOT ĐÃ CẬP NHẬT PHIÊN BẢN MỚI!')
+                    .setTitle('🚀 BOT ĐÃ CẬP NHẬT PHIÊN BẢN MỚI! - v1.000')
                     .setDescription(`Bot vừa được khởi động lại / cập nhật phiên bản thành công trên MongoDB!\nGõ \`${PREFIX}menu\` để xem toàn bộ danh sách lệnh!`)
                     .setTimestamp();
 

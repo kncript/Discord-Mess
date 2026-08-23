@@ -1,10 +1,12 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const express = require('express');
 const mongoose = require('mongoose');
 const axios = require('axios');
 
-// Điền ID kênh chat của bạn vào đây nếu muốn bot thông báo mỗi khi khởi động/update
-const NOTIFICATION_CHANNEL_ID = "ĐIỀN_ID_KENH_VAO_ĐÂY"; 
+// Cấu hình ID kênh chat theo yêu cầu
+const UPDATE_CHANNEL_ID = "1540977738951819335";    // Kênh thông báo Update Bot
+const MARRIAGE_CHANNEL_ID = "1541003782492528740";  // Kênh thông báo Kết Hôn
+const ADMIN_LOG_CHANNEL_ID = "1541004363617533953"; // Kênh thông báo Admin phạt/ban
 
 // 1. Khởi tạo Express server (giữ bot online 24/7 trên Render)
 const app = express();
@@ -29,7 +31,7 @@ if (mongoURI) {
     console.log('⚠️ Không tìm thấy biến MONGO_URI trong môi trường!');
 }
 
-// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu
+// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu người dùng
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     coins: { type: Number, default: 50000 }, 
@@ -43,23 +45,23 @@ const userSchema = new mongoose.Schema({
         type: Object,
         default: null
     },
-    marriage: { type: String, default: null }, // ID người kết hôn
+    marriage: { type: String, default: null },
     company: {
         type: Object,
-        default: null // { invested: Số tiền, startTime: Thời gian mở }
+        default: null
     }
 });
 
 const User = mongoose.model('User', userSchema);
 
-// Schema lưu trữ cấu hình chung (admins)
+// Schema lưu trữ cấu hình chung (admins và phiên bản bot)
 const configSchema = new mongoose.Schema({
     key: { type: String, required: true, unique: true },
-    admins: { type: Array, default: [] }
+    admins: { type: Array, default: [] },
+    botVersion: { type: Number, default: 1.000 }
 });
 const Config = mongoose.model('Config', configSchema);
 
-// Hàm lấy dữ liệu user từ MongoDB (Tính lãi suất ngân hàng 10%/1 giờ)
 async function getUser(userId) {
     let user = await User.findOne({ userId });
     if (!user) {
@@ -85,14 +87,13 @@ async function getUser(userId) {
     return user;
 }
 
-// Hàm lấy danh sách admin từ MongoDB
-async function getAdmins() {
+async function getConfig() {
     let config = await Config.findOne({ key: 'global_config' });
     if (!config) {
-        config = new Config({ key: 'global_config', admins: [] });
+        config = new Config({ key: 'global_config', admins: [], botVersion: 1.000 });
         await config.save();
     }
-    return config.admins;
+    return config;
 }
 
 // 3. Khởi tạo Discord Client
@@ -109,10 +110,10 @@ let isBotActive = true;
 
 async function isAdmin(userId, member) {
     const OWNER_ID = "950579308051697725"; 
-    
     if (userId === OWNER_ID) return true;
-    const admins = await getAdmins();
-    if (admins.includes(userId)) return true;
+    
+    const config = await getConfig();
+    if (config.admins.includes(userId)) return true;
     if (member && member.permissions.has('Administrator')) return true;
     
     return false;
@@ -121,14 +122,22 @@ async function isAdmin(userId, member) {
 client.once('ready', async () => {
     console.log(`Bot đã sẵn sàng! Đăng nhập với tên: ${client.user.tag}`);
 
-    if (NOTIFICATION_CHANNEL_ID && NOTIFICATION_CHANNEL_ID !== "ĐIỀN_ID_KENH_VAO_ĐÂY") {
+    // Tự động tăng phiên bản bot thêm 0.001 mỗi lần khởi động/update
+    const config = await getConfig();
+    config.botVersion = parseFloat((config.botVersion + 0.001).toFixed(3));
+    await config.save();
+
+    const versionString = `v${config.botVersion.toFixed(3)}`;
+
+    // Gửi thông báo Update Bot vào kênh cố định
+    if (UPDATE_CHANNEL_ID) {
         try {
-            const channel = await client.channels.fetch(NOTIFICATION_CHANNEL_ID);
+            const channel = await client.channels.fetch(UPDATE_CHANNEL_ID);
             if (channel && channel.isTextBased()) {
                 const updateEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
-                    .setTitle('🚀 BOT ĐÃ CẬP NHẬT HỆ THỐNG ĐẦY ĐỦ!')
-                    .setDescription(`Đã phục hồi toàn bộ menu và bổ sung Kết Hôn + Mở Công Ty!\nGõ \`.menu\` để xem chi tiết!`)
+                    .setTitle(`🚀 BOT ĐÃ CẬP NHẬT PHIÊN BẢN ${versionString}!`)
+                    .setDescription(`Hệ thống vừa được khởi động lại và cập nhật lên bản **${versionString}** thành công.\nGõ \`.menu\` để xem chi tiết!`)
                     .setTimestamp();
 
                 await channel.send({ embeds: [updateEmbed] });
@@ -139,7 +148,7 @@ client.once('ready', async () => {
     }
 });
 
-// Chào mừng thành viên mới (Tặng 50k VNĐ)
+// Chào mừng thành viên mới
 client.on('guildMemberAdd', async member => {
     if (!isBotActive) return;
     const channel = member.guild.systemChannel;
@@ -203,10 +212,11 @@ client.on('messageCreate', async message => {
     const user = await getUser(userId);
 
     if (command === 'info') {
+        const config = await getConfig();
         const infoEmbed = new EmbedBuilder()
             .setColor(0xF1C40F)
             .setTitle('🤖 THÔNG TIN HỆ THỐNG BOT')
-            .setDescription(`Hệ thống kinh tế chuẩn VNĐ thực tế.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây](https://hina-long-pfbot.netlify.app/)`)
+            .setDescription(`Phiên bản hiện tại: **v${config.botVersion.toFixed(3)}**\nHệ thống kinh tế chuẩn VNĐ thực tế.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây](https://hina-long-pfbot.netlify.app/)`)
             .setTimestamp();
         return message.reply({ embeds: [infoEmbed] });
     }
@@ -215,7 +225,6 @@ client.on('messageCreate', async message => {
         return message.reply('Chào bạn! Bot đang hoạt động mượt mà với đầy đủ tính năng!');
     }
 
-    // --- BẢNG MENU GỐC ĐẦY ĐỦ ---
     if (command === 'help' || command === 'menu') {
         const menuEmbed = new EmbedBuilder()
             .setColor(0x00AE86)
@@ -227,7 +236,7 @@ client.on('messageCreate', async message => {
                 { name: '💍 Gia Đình & Công Ty Mới', value: `\`${PREFIX}marry @user\` - Cầu hôn kết hôn\n\`${PREFIX}divorce\` - Ly hôn\n\`${PREFIX}company open <số tiền>\` - Mở công ty (Tối thiểu 10 Tỉ, lãi 200%/h, rủi ro 3% cook/phút)\n\`${PREFIX}company status\` - Kiểm tra công ty\n\`${PREFIX}company claim\` - Rút vốn và chốt lãi`, inline: false },
                 { name: '🎲 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh waifu ngẫu nhiên từ kho GitHub (5k VNĐ)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (50k VNĐ)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số tiền / all> <tai/xiu>\` - Tài Xỉu\n\`${PREFIX}rob @user\` - Cướp tiền\n\`${PREFIX}lode <00-99> <số tiền>\` - Xổ số lô đề\n\`${PREFIX}game\` / \`${PREFIX}doan <số>\` - Trò chơi đoán số`, inline: false },
                 { name: '🐾 Hệ Thống Thú Cưng (Pet)', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi pet (100k VNĐ)\n\`${PREFIX}pet\` - Xem thông tin pet\n\`${PREFIX}pet feed\` - Cho pet ăn\n\`${PREFIX}pet work\` - Sai pet kiếm tiền\n\`${PREFIX}pet sell\` - Bán pet nhận ngẫu nhiên tới 500k VNĐ`, inline: false },
-                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}vnd add <số> @user\` - Bơm tiền\n\`${PREFIX}vnd sub <số> @user\` - Trừ tiền\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` / \`${PREFIX}unban <ID>\`\n\`${PREFIX}mute @user\` / \`${PREFIX}unmute @user\``, inline: false },
+                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}vnd add <số> @user\` - Bơm tiền\n\`${PREFIX}vnd sub <số> @user\` - Trừ tiền\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user [lý do]\` / \`${PREFIX}unban <ID>\`\n\`${PREFIX}mute @user [lý do]\` / \`${PREFIX}unmute @user\``, inline: false },
                 { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\`\n\`${PREFIX}vnd reset @user\`\n\`${PREFIX}admin add/remove @user\``, inline: false }
             )
             .setTimestamp();
@@ -300,7 +309,6 @@ client.on('messageCreate', async message => {
         }
 
         user.lastDaily = now;
-        
         const baseReward = 20000; 
         const streakBonus = Math.min((user.streak - 1) * 10000, 150000); 
         const totalReward = baseReward + streakBonus;
@@ -322,7 +330,7 @@ client.on('messageCreate', async message => {
         return message.reply(text);
     }
 
-    // --- HỆ THỐNG KẾT HÔN (.marry, .divorce) ---
+    // --- HỆ THỐNG KẾT HÔN VỚI NÚT BẤM VÀ GỬI KÊNH RIÊNG ---
     if (command === 'marry') {
         const target = message.mentions.users.first();
         if (!target) return message.reply(`Cách dùng: \`${PREFIX}marry @user\``);
@@ -333,25 +341,51 @@ client.on('messageCreate', async message => {
         const targetUser = await getUser(target.id);
         if (targetUser.marriage) return message.reply(`❌ **${target.username}** đã có gia đình rồi!`);
 
-        const proposalMsg = await message.reply(`💍 <@${target.id}>, bạn có đồng ý kết hôn với **${message.author.username}** không? Phản hồi bằng \`y\` (Đồng ý) hoặc \`n\` (Từ chối) trong 30 giây!`);
-        
-        const filter = response => response.author.id === target.id;
-        try {
-            const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] });
-            const answer = collected.first().content.toLowerCase();
+        // Tạo nút bấm Đồng ý / Từ chối
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('marry_accept').setLabel('Đồng ý ❤️').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('marry_decline').setLabel('Từ chối 💔').setStyle(ButtonStyle.Danger)
+        );
 
-            if (answer === 'y' || answer === 'yes') {
+        const proposalMsg = await message.reply({
+            content: `💍 <@${target.id}>, bạn có nhận được lời cầu hôn từ **${message.author.username}**. Hãy nhấn nút bên dưới trong vòng 30 giây!`,
+            components: [row]
+        });
+
+        const filter = i => i.user.id === target.id;
+        const collector = proposalMsg.createMessageComponentCollector({ filter, time: 30000 });
+
+        collector.on('collect', async i => {
+            if (i.customId === 'marry_accept') {
                 user.marriage = target.id;
                 targetUser.marriage = userId;
                 await user.save();
                 await targetUser.save();
-                return message.reply(`🎉 Chúc mừng cặp đôi **${message.author.username}** và **${target.username}** đã chính thức về chung một nhà! 💒`);
+
+                await i.update({ content: `🎉 Chúc mừng cặp đôi **${message.author.username}** và **${target.username}** đã chính thức kết hôn! 💒`, components: [] });
+
+                // Gửi thông báo sang kênh kết hôn cố định
+                if (MARRIAGE_CHANNEL_ID) {
+                    try {
+                        const mChannel = await client.channels.fetch(MARRIAGE_CHANNEL_ID);
+                        if (mChannel && mChannel.isTextBased()) {
+                            await mChannel.send(`🔔 **THÔNG BÁO LỄ CƯỚI:** Chúc mừng <@${message.author.id}> và <@${target.id}> đã chính thức về chung một nhà! 💍✨`);
+                        }
+                    } catch (err) {
+                        console.error('Lỗi gửi kênh kết hôn:', err);
+                    }
+                }
             } else {
-                return message.reply(`💔 Rất tiếc, **${target.username}** đã từ chối lời cầu hôn.`);
+                await i.update({ content: `💔 Rất tiếc, **${target.username}** đã từ chối lời cầu hôn.`, components: [] });
             }
-        } catch (err) {
-            return message.reply(`⏰ Đã quá thời gian suy nghĩ, lời cầu hôn đã hết hiệu lực.`);
-        }
+        });
+
+        collector.on('end', async (collected, reason) => {
+            if (reason === 'time') {
+                await proposalMsg.edit({ content: `⏰ Đã quá thời gian 30 giây, lời cầu hôn giữa **${message.author.username}** và **${target.username}** đã hết hiệu lực.`, components: [] }).catch(() => {});
+            }
+        });
+        return;
     }
 
     if (command === 'divorce') {
@@ -368,7 +402,7 @@ client.on('messageCreate', async message => {
         return message.reply(`📜 Bạn đã ly hôn thành công và chính thức quay lại kiếp độc thân.`);
     }
 
-    // --- HỆ THỐNG MỞ CÔNG TY (.company open, .company status, .company claim) ---
+    // --- HỆ THỐNG MỞ CÔNG TY ---
     if (command === 'company' || command === 'ct') {
         const subAction = args[0] ? args[0].toLowerCase() : '';
 
@@ -385,13 +419,10 @@ client.on('messageCreate', async message => {
             }
 
             user.coins -= amount;
-            user.company = {
-                invested: amount,
-                startTime: Date.now()
-            };
+            user.company = { invested: amount, startTime: Date.now() };
             await user.save();
 
-            return message.reply(`🏢 Khởi nghiệp thành công với số vốn **${amount.toLocaleString('vi-VN')} VNĐ**!\n⚠️ *Lưu ý:* Mỗi phút công ty hoạt động sẽ có **3% nguy cơ đứt chuỗi vốn và "cook" sạch tiền**, nhưng lãi nhận được là **200% mỗi giờ**! Gõ \`${PREFIX}company claim\` để thu hồi vốn và lãi.`);
+            return message.reply(`🏢 Khởi nghiệp thành công với số vốn **${amount.toLocaleString('vi-VN')} VNĐ**!\n⚠️ *Lưu ý:* Mỗi phút công ty hoạt động sẽ có **3% nguy cơ đứt chuỗi vốn và "cook" sạch tiền**, nhưng lãi nhận được là **200% mỗi giờ**! Gõ \`${PREFIX}company claim\` để rút vốn và chốt lãi.`);
         }
 
         if (subAction === 'status') {
@@ -400,8 +431,6 @@ client.on('messageCreate', async message => {
             const now = Date.now();
             const minutesPassed = Math.floor((now - user.company.startTime) / (60 * 1000));
             const hoursPassed = (now - user.company.startTime) / (60 * 60 * 1000);
-            
-            // Lãi 200% mỗi giờ
             const potentialProfit = Math.floor(user.company.invested * 2.0 * hoursPassed);
             const totalPotential = user.company.invested + potentialProfit;
 
@@ -419,7 +448,6 @@ client.on('messageCreate', async message => {
             const now = Date.now();
             const minutesPassed = Math.floor((now - user.company.startTime) / (60 * 1000));
             
-            // Kiểm tra rủi ro "cook" (3% cơ hội cook mỗi phút)
             let isCooked = false;
             for (let i = 0; i < minutesPassed; i++) {
                 if (Math.random() < 0.03) {
@@ -435,7 +463,6 @@ client.on('messageCreate', async message => {
                 return message.reply(`💥 **TIN XẤU!** Công ty của bạn đã bất ngờ đứt chuỗi vốn sau ${minutesPassed} phút hoạt động, bị phá sản và **COOK** hoàn toàn! Bạn mất trắng **${lostMoney.toLocaleString('vi-VN')} VNĐ** vốn đầu tư. 📉`);
             }
 
-            // Tính tiền nhận về: Vốn + Lãi (200% mỗi giờ)
             const invested = user.company.invested;
             const hoursPassed = (now - user.company.startTime) / (60 * 60 * 1000);
             const profit = Math.floor(invested * 2.0 * hoursPassed);
@@ -462,8 +489,7 @@ client.on('messageCreate', async message => {
             return message.reply(`Cách dùng: \`${PREFIX}admin add @user\``);
         }
 
-        let config = await Config.findOne({ key: 'global_config' });
-        if (!config) config = new Config({ key: 'global_config', admins: [] });
+        let config = await getConfig();
 
         if (action === 'add') {
             if (config.admins.includes(targetUser.id)) return message.reply('Đã là admin từ trước!');
@@ -514,13 +540,38 @@ client.on('messageCreate', async message => {
         }
     }
 
+    // --- HỆ THỐNG BAN VÀ MUTE KÈM KÊNH LOG ADMIN (`1541004363617533953`) ---
+    async function sendAdminLog(adminUser, actionName, targetName, reason) {
+        if (!ADMIN_LOG_CHANNEL_ID) return;
+        try {
+            const logChannel = await client.channels.fetch(ADMIN_LOG_CHANNEL_ID);
+            if (logChannel && logChannel.isTextBased()) {
+                const logEmbed = new EmbedBuilder()
+                    .setColor(0xE74C3C)
+                    .setTitle(`🛡️ ADMIN HÀNH ĐỘNG: ${actionName.toUpperCase()}`)
+                    .addFields(
+                        { name: '👤 Người bị phạt', value: targetName, inline: true },
+                        { name: '👮‍♂️ Admin thực hiện', value: `<@${adminUser.id}>`, inline: true },
+                        { name: '📝 Lý do', value: reason, inline: false }
+                    )
+                    .setTimestamp();
+                await logChannel.send({ embeds: [logEmbed] });
+            }
+        } catch (err) {
+            console.error('Lỗi gửi log admin:', err);
+        }
+    }
+
     if (command === 'ban') {
         if (!await isAdmin(userId, message.member)) return message.reply('❌ Không có quyền!');
         const targetMember = message.mentions.members.first();
-        if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}ban @user\``);
+        if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}ban @user [lý do]\``);
+        
+        const reason = args.slice(1).join(' ') || 'Không có lý do cụ thể';
         try {
-            await targetMember.ban({ reason: `Bởi Admin` });
-            return message.reply(`🔨 Đã ban **${targetMember.user.username}**!`);
+            await targetMember.ban({ reason: `Bởi ${message.author.tag} - Lý do: ${reason}` });
+            await sendAdminLog(message.author, 'Ban Thành Viên', targetMember.user.tag, reason);
+            return message.reply(`🔨 Đã ban **${targetMember.user.username}** với lý do: *${reason}*!`);
         } catch (err) {
             return message.reply('❌ Không đủ quyền ban người này.');
         }
@@ -531,6 +582,7 @@ client.on('messageCreate', async message => {
         const targetId = args[0];
         try {
             await message.guild.members.unban(targetId);
+            await sendAdminLog(message.author, 'Unban Thành Viên', `ID: ${targetId}`, 'Gỡ lệnh cấm');
             return message.reply(`✅ Đã gỡ ban cho ID: **${targetId}**!`);
         } catch (err) {
             return message.reply('❌ Không tìm thấy ID.');
@@ -540,10 +592,13 @@ client.on('messageCreate', async message => {
     if (command === 'mute') {
         if (!await isAdmin(userId, message.member)) return message.reply('❌ Không có quyền!');
         const targetMember = message.mentions.members.first();
-        if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}mute @user\``);
+        if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}mute @user [lý do]\``);
+        
+        const reason = args.slice(1).join(' ') || 'Không có lý do cụ thể';
         try {
-            await targetMember.timeout(24 * 60 * 60 * 1000, 'Mute');
-            return message.reply(`🤐 Đã mute **${targetMember.user.username}**.`);
+            await targetMember.timeout(24 * 60 * 60 * 1000, `Mute bởi ${message.author.tag} - Lý do: ${reason}`);
+            await sendAdminLog(message.author, 'Mute Thành Viên', targetMember.user.tag, reason);
+            return message.reply(`🤐 Đã mute **${targetMember.user.username}** trong 24h với lý do: *${reason}*.`);
         } catch (err) {
             return message.reply('❌ Không thể mute.');
         }
@@ -555,6 +610,7 @@ client.on('messageCreate', async message => {
         if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}unmute @user\``);
         try {
             await targetMember.timeout(null, 'Unmute');
+            await sendAdminLog(message.author, 'Unmute Thành Viên', targetMember.user.tag, 'Gỡ hình phạt mute');
             return message.reply(`✅ Đã gỡ mute **${targetMember.user.username}**.`);
         } catch (err) {
             return message.reply('❌ Lỗi gỡ mute.');
@@ -582,7 +638,6 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [listEmbed] });
     }
 
-    // --- Câu cá thực tế ---
     if (command === 'cauca') {
         const cost = 50000;
         if (user.coins < cost) return message.reply(`🎣 Cần ít nhất **${cost.toLocaleString('vi-VN')} VNĐ** để mua mồi câu!`);
@@ -615,7 +670,6 @@ client.on('messageCreate', async message => {
         return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**! Bán thu về **${caughtFish.price.toLocaleString('vi-VN')} VNĐ**.`);
     }
 
-    // --- Gacha ảnh GitHub ---
     if (command === 'gai') {
         const cost = 5000;
         if (user.coins < cost) return message.reply(`Bạn cần **${cost.toLocaleString('vi-VN')} VNĐ** để xem ảnh.`);
@@ -656,7 +710,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Tài Xỉu ---
     if (command === 'xx') {
         let bet;
         let choice;
@@ -690,7 +743,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Cướp tiền (.rob) ---
     if (command === 'rob' || command === 'cuop') {
         const targetMember = message.mentions.users.first();
         if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}rob @user\``);
@@ -725,7 +777,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Lô đề ---
     if (command === 'lode' || command === 'xoaso') {
         const choiceNum = args[0];
         const bet = parseInt(args[1]);
@@ -749,7 +800,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Thú cưng (Pet) ---
     if (command === 'pet') {
         const subAction = args[0];
 

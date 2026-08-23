@@ -110,11 +110,6 @@ client.on('guildMemberRemove', member => {
 });
 
 let secretNumber = null;
-
-// ==========================================
-// THAY ĐỔI TIỀN TỐ (PREFIX) Ở ĐÂY
-// Bạn có thể đổi dấu '.' thành dấu '/' nếu muốn
-// ==========================================
 const PREFIX = '.'; 
 
 // 4. Xử lý các lệnh tin nhắn
@@ -144,16 +139,14 @@ client.on('messageCreate', async message => {
 
     if (!isBotActive) return;
 
-    // Kiểm tra xem tin nhắn có bắt đầu bằng tiền tố PREFIX không
     if (!message.content.startsWith(PREFIX)) return;
 
-    // Tách nội dung lệnh và các tham số (bỏ qua tiền tố)
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
     const user = getUser(userId);
 
-    // --- LỆNH !info ---
+    // --- LỆNH .info ---
     if (command === 'info') {
         const infoEmbed = new EmbedBuilder()
             .setColor(0xF1C40F)
@@ -173,7 +166,7 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
                 { name: '💰 Hệ Thống Tiền Tệ', value: `\`${PREFIX}coins [@user]\` - Xem số dư xu\n\`${PREFIX}daily\` - Điểm danh hằng ngày nhận 50 xu\n\`${PREFIX}top\` - Xem bảng xếp hạng top 10`, inline: false },
-                { name: '🎮 Mini-Game & Giải Trí', value: `\`${PREFIX}gai\` - Quay Gacha ảnh anime (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}roll <xu> <tai/xiu>\` - Chơi Tài Xỉu\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
+                { name: '🎮 Mini-Game & Giải Trí', value: `\`${PREFIX}gai\` - Quay Gacha ảnh anime (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu> <tai/xiu>\` - Chơi Tài Xỉu (Thắng x2)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
                 { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` - Ban thành viên\n\`${PREFIX}unban <ID>\` - Gỡ ban\n\`${PREFIX}mute @user\` - Mute 24h\n\`${PREFIX}unmute @user\` - Gỡ mute`, inline: false },
                 { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\` - Tắt/Bật bot\n\`${PREFIX}xu reset @user\` - Reset xu\n\`${PREFIX}admin add/remove @user\` - Quản lý Admin`, inline: false }
             )
@@ -459,13 +452,13 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [gachaEmbed] });
     }
 
-    // --- Tài xỉu ---
-    if (command === 'roll') {
+    // --- Tài xỉu (.xx) THẮNG X2 ---
+    if (command === 'xx') {
         const bet = parseInt(args[0]);
         const choice = args[1] ? args[1].toLowerCase() : '';
 
         if (isNaN(bet) || bet <= 0) {
-            return message.reply(`Cách chơi: \`${PREFIX}roll <số xu cược> <tai/xiu>\``);
+            return message.reply(`Cách chơi: \`${PREFIX}xx <số xu cược> <tai/xiu>\``);
         }
 
         if (user.coins < bet) {
@@ -484,13 +477,13 @@ client.on('messageCreate', async message => {
         const result = total >= 11 ? 'tai' : 'xiu';
 
         if (choice === result) {
-            user.coins += bet;
+            user.coins += bet; // Thắng nhận thêm đúng bằng số tiền cược (x2 tổng nhận)
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng! Nhận **${bet.toLocaleString('vi-VN')} xu**!`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng x2! Nhận được **${bet.toLocaleString('vi-VN')} xu**! Số dư mới: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
         } else {
-            user.coins -= bet;
+            user.coins -= bet; // Thua mất tiền cược
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**. Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
         }
     }
 

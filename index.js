@@ -4,11 +4,12 @@ const mongoose = require('mongoose');
 const axios = require('axios');
 
 // Cấu hình ID kênh chat theo yêu cầu
-const UPDATE_CHANNEL_ID = "1540977738951819335";    // Kênh thông báo Update Bot
-const MARRIAGE_CHANNEL_ID = "1541003782492528740";  // Kênh thông báo Kết Hôn
-const ADMIN_LOG_CHANNEL_ID = "1541004363617533953"; // Kênh thông báo Admin phạt/ban
+const UPDATE_CHANNEL_ID = "1540977738951819335";    // Kênh thông báo Update Bot[cite: 1]
+const MARRIAGE_CHANNEL_ID = "1541003782492528740";  // Kênh thông báo Kết Hôn[cite: 1]
+const ADMIN_LOG_CHANNEL_ID = "1541004363617533953"; // Kênh thông báo Admin phạt/ban[cite: 1]
+const NSFW_CHANNEL_ID = "1541006208390139947";      // Kênh riêng cho lệnh NSFW
 
-// 1. Khởi tạo Express server (giữ bot online 24/7 trên Render)
+// 1. Khởi tạo Express server (giữ bot online 24/7 trên Render)[cite: 1]
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -20,7 +21,7 @@ app.listen(PORT, () => {
     console.log(`Web server đang chạy trên cổng ${PORT}`);
 });
 
-// 2. Kết nối MongoDB Atlas
+// 2. Kết nối MongoDB Atlas[cite: 1]
 const mongoURI = process.env.MONGO_URI;
 
 if (mongoURI) {
@@ -31,7 +32,7 @@ if (mongoURI) {
     console.log('⚠️ Không tìm thấy biến MONGO_URI trong môi trường!');
 }
 
-// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu người dùng
+// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu người dùng[cite: 1]
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     coins: { type: Number, default: 50000 }, 
@@ -54,7 +55,7 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// Schema lưu trữ cấu hình chung (admins và phiên bản bot)
+// Schema lưu trữ cấu hình chung (admins và phiên bản bot)[cite: 1]
 const configSchema = new mongoose.Schema({
     key: { type: String, required: true, unique: true },
     admins: { type: Array, default: [] },
@@ -96,7 +97,7 @@ async function getConfig() {
     return config;
 }
 
-// 3. Khởi tạo Discord Client
+// 3. Khởi tạo Discord Client[cite: 1]
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -122,14 +123,14 @@ async function isAdmin(userId, member) {
 client.once('ready', async () => {
     console.log(`Bot đã sẵn sàng! Đăng nhập với tên: ${client.user.tag}`);
 
-    // Tự động tăng phiên bản bot thêm 0.001 mỗi lần khởi động/update
+    // Tự động tăng phiên bản bot thêm 0.001 mỗi lần khởi động/update[cite: 1]
     const config = await getConfig();
     config.botVersion = parseFloat((config.botVersion + 0.001).toFixed(3));
     await config.save();
 
     const versionString = `v${config.botVersion.toFixed(3)}`;
 
-    // Gửi thông báo Update Bot vào kênh cố định
+    // Gửi thông báo Update Bot vào kênh cố định[cite: 1]
     if (UPDATE_CHANNEL_ID) {
         try {
             const channel = await client.channels.fetch(UPDATE_CHANNEL_ID);
@@ -148,7 +149,7 @@ client.once('ready', async () => {
     }
 });
 
-// Chào mừng thành viên mới
+// Chào mừng thành viên mới[cite: 1]
 client.on('guildMemberAdd', async member => {
     if (!isBotActive) return;
     const channel = member.guild.systemChannel;
@@ -209,6 +210,29 @@ client.on('messageCreate', async message => {
 
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
+
+    // --- LỆNH NSFW (CHỈ CHỦ BOT TỐI CAO & KÊNH CHỈ ĐỊNH, CÁC NƠI KHÁC HOẶC NGƯỜI KHÁC DÙNG SẼ KHÔNG PHẢN HỒI) ---
+    if (command === 'nsfw') {
+        if (userId !== OWNER_ID || message.channel.id !== NSFW_CHANNEL_ID) {
+            return; // Im lặng hoàn toàn, không phản hồi nếu sai kênh hoặc không phải chủ bot
+        }
+
+        // Danh sách link hoặc văn bản ngẫu nhiên do bạn cung cấp
+        const nsfwList = [
+            "https://example.com/link-nsfw-1.jpg",
+            "https://example.com/link-nsfw-2.jpg",
+            "Văn bản hoặc nội dung NSFW tùy chỉnh thứ 3"
+            // Bạn có thể thêm các link/văn bản khác vào đây, cách nhau bằng dấu phẩy
+        ];
+
+        if (nsfwList.length === 0) {
+            return message.reply('⚠️ Danh sách nội dung đang trống!');
+        }
+
+        const randomContent = nsfwList[Math.floor(Math.random() * nsfwList.length)];
+        return message.reply(randomContent);
+    }
+
     const user = await getUser(userId);
 
     if (command === 'info') {
@@ -216,7 +240,7 @@ client.on('messageCreate', async message => {
         const infoEmbed = new EmbedBuilder()
             .setColor(0xF1C40F)
             .setTitle('🤖 THÔNG TIN HỆ THỐNG BOT')
-            .setDescription(`Phiên bản hiện tại: **v${config.botVersion.toFixed(3)}**\nHệ thống kinh tế chuẩn VNĐ thực tế.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây](https://hina-long-pfbot.netlify.app/)`)
+            .setDescription(`Phiên bản hiện tại: **v${config.botVersion.toFixed(3)}**\nHệ thống kinh tế chuẩn VNĐ thực tế[cite: 1].\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây](https://hina-long-pfbot.netlify.app/)`)
             .setTimestamp();
         return message.reply({ embeds: [infoEmbed] });
     }
@@ -341,7 +365,6 @@ client.on('messageCreate', async message => {
         const targetUser = await getUser(target.id);
         if (targetUser.marriage) return message.reply(`❌ **${target.username}** đã có gia đình rồi!`);
 
-        // Tạo nút bấm Đồng ý / Từ chối
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('marry_accept').setLabel('Đồng ý ❤️').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId('marry_decline').setLabel('Từ chối 💔').setStyle(ButtonStyle.Danger)
@@ -364,7 +387,6 @@ client.on('messageCreate', async message => {
 
                 await i.update({ content: `🎉 Chúc mừng cặp đôi **${message.author.username}** và **${target.username}** đã chính thức kết hôn! 💒`, components: [] });
 
-                // Gửi thông báo sang kênh kết hôn cố định
                 if (MARRIAGE_CHANNEL_ID) {
                     try {
                         const mChannel = await client.channels.fetch(MARRIAGE_CHANNEL_ID);

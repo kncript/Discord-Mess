@@ -122,8 +122,8 @@ client.once('ready', async () => {
             if (channel && channel.isTextBased()) {
                 const updateEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
-                    .setTitle('🚀 BOT ĐÃ CẬP NHẬT HỆ THỐNG TIỀN TỆ VNĐ!')
-                    .setDescription(`Toàn bộ mệnh giá và giá cả đã được quy đổi sang VNĐ thực tế!\nGõ \`${PREFIX}menu\` để xem chi tiết!`)
+                    .setTitle('🚀 BOT ĐÃ CẬP NHẬT HỆ THỐNG KINH TẾ VNĐ!')
+                    .setDescription(`Toàn bộ mệnh giá, giá cá, ngân hàng và lương pet đi làm đã được tối ưu!\nGõ \`${PREFIX}menu\` để xem chi tiết!`)
                     .setTimestamp();
 
                 await channel.send({ embeds: [updateEmbed] });
@@ -215,7 +215,7 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: '💰 Tài Chính & Ngân Hàng', value: `\`${PREFIX}coins [@user]\` - Xem ví & ngân hàng\n\`${PREFIX}deposit <số tiền / all>\` - Gửi tiết kiệm (Lãi 10%/h)\n\`${PREFIX}withdraw <số tiền / all>\` - Rút tiền\n\`${PREFIX}daily\` - Nhận lương điểm danh\n\`${PREFIX}top\` - Bảng xếp hạng tài sản`, inline: false },
                 { name: '🎮 Giải Trí & Kiếm Tiền', value: `\`${PREFIX}gai\` - Gacha ảnh waifu (5.000 VNĐ)\n\`${PREFIX}cauca\` - Mua mồi câu cá (50.000 VNĐ)\n\`${PREFIX}caucalist\` - Xem bảng giá hải sản thực tế\n\`${PREFIX}xx <số tiền / all> <tai/xiu>\` - Tài Xỉu\n\`${PREFIX}rob @user\` - Trấn tiền\n\`${PREFIX}lode <số 00-99> <số tiền>\` - Lô đề`, inline: false },
-                { name: '🐾 Nuôi Thú Cưng', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi (100.000 VNĐ)\n\`${PREFIX}pet\` - Xem pet\n\`${PREFIX}pet feed\` - Cho ăn\n\`${PREFIX}pet work\` - Sai pet đi làm\n\`${PREFIX}pet sell\` - Bán pet nhận ngẫu nhiên tới 500k VNĐ`, inline: false },
+                { name: '🐾 Nuôi Thú Cưng', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi (100.000 VNĐ)\n\`${PREFIX}pet\` - Xem pet\n\`${PREFIX}pet feed\` - Cho ăn\n\`${PREFIX}pet work\` - Pet đi làm kiếm tiền khủng\n\`${PREFIX}pet sell\` - Bán pet nhận ngẫu nhiên tới 500k VNĐ`, inline: false },
                 { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}vnd add/sub <số tiền> @user\`\n\`${PREFIX}clear <số>\` | \`${PREFIX}ban\` | \`${PREFIX}mute\``, inline: false }
             )
             .setTimestamp();
@@ -289,8 +289,8 @@ client.on('messageCreate', async message => {
 
         user.lastDaily = now;
         
-        const baseReward = 20000; // Lương cơ bản 20k VNĐ
-        const streakBonus = Math.min((user.streak - 1) * 10000, 150000); // Thưởng chuỗi max 150k
+        const baseReward = 20000; 
+        const streakBonus = Math.min((user.streak - 1) * 10000, 150000); 
         const totalReward = baseReward + streakBonus;
 
         user.coins += totalReward;
@@ -335,7 +335,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Lệnh Quản Lý Tiền VNĐ ---
     if (command === 'vnd' || command === 'xu') {
         const subAction = args[0];
         
@@ -537,7 +536,7 @@ client.on('messageCreate', async message => {
         const result = total >= 11 ? 'tai' : 'xiu';
 
         if (choice === result) {
-            user.coins += bet; // Thắng ăn x2 (lãi đúng số tiền cược)
+            user.coins += bet; 
             await user.save();
             return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (${total} - **${result.toUpperCase()}**).\n🎉 Thắng! Nhận **${(bet * 2).toLocaleString('vi-VN')} VNĐ**!`);
         } else {
@@ -606,14 +605,14 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Thú cưng (Pet buy 100k, sell random tới 500k) ---
+    // --- Thú cưng (Pet buy 100k, sell random tới 500k, work buff mạnh) ---
     if (command === 'pet') {
         const subAction = args[0];
 
         if (subAction === 'buy') {
             if (user.pet) return message.reply(`⚠️ Bạn đã có pet rồi!`);
             const petName = args.slice(1).join(' ');
-            const cost = 100000; // Giá mua pet 100k VNĐ
+            const cost = 100000; 
             if (!petName) return message.reply(`Cách dùng: \`${PREFIX}pet buy <tên>\``);
             if (user.coins < cost) return message.reply(`❌ Cần **${cost.toLocaleString('vi-VN')} VNĐ** để mua thú cưng.`);
 
@@ -628,7 +627,7 @@ client.on('messageCreate', async message => {
         let p = { ...user.pet };
 
         if (subAction === 'sell') {
-            const sellPrice = Math.floor(Math.random() * 490000) + 10000; // Random từ 10k đến 500k VNĐ
+            const sellPrice = Math.floor(Math.random() * 490000) + 10000; 
             user.coins += sellPrice;
             const petName = p.name;
             user.pet = null;
@@ -657,13 +656,15 @@ client.on('messageCreate', async message => {
         if (subAction === 'work') {
             const workCooldown = 1 * 60 * 60 * 1000; 
             const now = Date.now();
-            if (now - p.lastWork < workCooldown) return message.reply(`⏳ Pet đang mệt.`);
+            if (now - p.lastWork < workCooldown) return message.reply(`⏳ Pet đang mệt, hãy đợi thêm chút nữa nhé.`);
             p.lastWork = now;
-            const earned = p.level * 10000 + Math.floor(Math.random() * 10000); // Kiếm tiền VNĐ
+            
+            // Đã buff mạnh tiền đi làm (Level * 200k + random tới 150k + 50k)
+            const earned = p.level * 200000 + Math.floor(Math.random() * 150000) + 50000; 
             user.coins += earned;
             user.pet = p;
             await user.save();
-            return message.reply(`💼 Pet đi làm kiếm về **${earned.toLocaleString('vi-VN')} VNĐ**!`);
+            return message.reply(`💼 Pet đi làm về cực chăm chỉ và kiếm về cho bạn **${earned.toLocaleString('vi-VN')} VNĐ**! Tổng ví hiện tại: **${Number(user.coins).toLocaleString('vi-VN')} VNĐ**.`);
         }
 
         const petEmbed = new EmbedBuilder()

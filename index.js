@@ -132,7 +132,7 @@ client.once('ready', async () => {
         if (!channel) return;
 
         const memberCount = guild.memberCount;
-        await channel.setName(`📊 Thành viên: ${memberCount}`).catch(() => {});
+        await channel.setName(`🔊 Members: ${memberCount}`).catch(() => {});
     }, 5 * 60 * 1000);
 
     // Tự động tăng phiên bản bot thêm 0.001 mỗi lần khởi động/update[cite: 1]

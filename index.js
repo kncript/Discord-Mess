@@ -24,7 +24,7 @@ const client = new Client({
     ]
 });
 
-// Trạng thái hoạt động của bot (Phục vụ cho lệnh !bot on / !bot off)
+// Trạng thái hoạt động của bot
 let isBotActive = true; 
 
 // 3. Quản lý lưu trữ dữ liệu JSON (data.json)
@@ -61,7 +61,7 @@ function getUser(userId) {
 
 // Kiểm tra quyền Admin
 function isAdmin(userId, member) {
-    const OWNER_ID = "950579308051697725"; // ID của bạn
+    const OWNER_ID = "950579308051697725"; 
     
     if (userId === OWNER_ID) return true;
     if (db.admins && db.admins.includes(userId)) return true;
@@ -111,6 +111,12 @@ client.on('guildMemberRemove', member => {
 
 let secretNumber = null;
 
+// ==========================================
+// THAY ĐỔI TIỀN TỐ (PREFIX) Ở ĐÂY
+// Bạn có thể đổi dấu '.' thành dấu '/' nếu muốn
+// ==========================================
+const PREFIX = '.'; 
+
 // 4. Xử lý các lệnh tin nhắn
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
@@ -118,53 +124,58 @@ client.on('messageCreate', async message => {
     const OWNER_ID = "950579308051697725";
 
     // --- LỆNH CHỦ BOT TỐI CAO: BẬT / TẮT BOT ---
-    if (message.content === '!bot off') {
+    if (message.content === PREFIX + 'bot off') {
         if (userId !== OWNER_ID) {
             return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
         }
         isBotActive = false;
-        await message.reply('💤 Bot đã chuyển sang trạng thái **TẮT** (Ngưng nhận lệnh). Gõ `!bot on` để bật lại!');
-        console.log('Bot đã bị vô hiệu hóa tạm thời bởi Owner.');
+        await message.reply(`💤 Bot đã chuyển sang trạng thái **TẮT**. Gõ \`${PREFIX}bot on\` để bật lại!`);
         return;
     }
 
-    if (message.content === '!bot on') {
+    if (message.content === PREFIX + 'bot on') {
         if (userId !== OWNER_ID) {
             return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
         }
         isBotActive = true;
         await message.reply('🟢 Bot đã được **BẬT** trở lại và hoạt động bình thường!');
-        console.log('Bot đã được kích hoạt lại bởi Owner.');
         return;
     }
 
     if (!isBotActive) return;
 
+    // Kiểm tra xem tin nhắn có bắt đầu bằng tiền tố PREFIX không
+    if (!message.content.startsWith(PREFIX)) return;
+
+    // Tách nội dung lệnh và các tham số (bỏ qua tiền tố)
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+
     const user = getUser(userId);
 
     // --- LỆNH !info ---
-    if (message.content === '!info') {
+    if (command === 'info') {
         const infoEmbed = new EmbedBuilder()
             .setColor(0xF1C40F)
             .setTitle('🤖 THÔNG TIN HỆ THỐNG BOT')
-            .setDescription(`Bot được phát triển để phục vụ server.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây để truy cập](https://hina-long-pfbot.netlify.app/)\n\nGõ \`!menu\` để xem toàn bộ danh sách lệnh giải trí và quản trị!`)
+            .setDescription(`Bot được phát triển để phục vụ server.\n👑 **Chủ Bot Tối Cao:** <@${OWNER_ID}>\n🌐 **Website Profile:** [Nhấn vào đây để truy cập](https://hina-long-pfbot.netlify.app/)\n\nGõ \`${PREFIX}menu\` để xem toàn bộ danh sách lệnh giải trí và quản trị!`)
             .setTimestamp();
 
         return message.reply({ embeds: [infoEmbed] });
     }
 
     // --- BẢNG MENU HƯỚNG DẪN ---
-    if (message.content === '!help' || message.content === '!menu') {
+    if (command === 'help' || command === 'menu') {
         const menuEmbed = new EmbedBuilder()
             .setColor(0x00AE86)
             .setTitle('📖 BẢNG HƯỚNG DẪN LỆNH - BOT BÉO FAT ASS')
-            .setDescription('Dưới đây là toàn bộ danh sách các lệnh giải trí, kinh tế và quản lý có sẵn trong server:')
+            .setDescription(`Dưới đây là danh sách lệnh (sử dụng tiền tố \`${PREFIX}\`):`)
             .addFields(
-                { name: 'ℹ️ Thông Tin & Hệ Thống', value: '`!info` - Xem thông tin bot, tag Chủ Bot và link web profile\n`!hello` - Kiểm tra trạng thái hoạt động của bot', inline: false },
-                { name: '💰 Hệ Thống Tiền Tệ', value: '`!coins [@user]` - Xem số dư ví xu của bản thân hoặc người khác\n`!daily` - Điểm danh hằng ngày nhận 50 xu (Cooldown: 24h)\n`!top` - Xem bảng xếp hạng top 10 người giàu nhất server', inline: false },
-                { name: '🎮 Mini-Game & Giải Trí', value: '`!gai` - Quay Gacha nhận ảnh anime siêu nét (Phí: 20 xu)\n`!cauca` - Quăng mồi câu cá nhận thưởng (Phí: 30 xu | Không giới hạn thời gian)\n`!caucalist` - Xem bảng giá trị cá và tỉ lệ câu\n`!roll <số xu> <tai/xiu>` - Chơi Tài Xỉu (Thắng x2 tiền cược)\n`!game` & `!doan <số>` - Chơi đoán số từ 1-10 nhận 30 xu', inline: false },
-                { name: '🛠 Quản Trị (Admin)', value: '`!xu add <số lượng> @user` - Bơm xu cho người chơi\n`!xu sub <số lượng> @user` - Trừ xu của người chơi\n`!clear <số lượng>` - Xóa nhanh tin nhắn (1-100)\n`!ban @user` - Ban thành viên\n`!unban <ID>` - Gỡ ban bằng ID\n`!mute @user` - Mute thành viên 24h\n`!unmute @user` - Gỡ mute thành viên', inline: false },
-                { name: '👑 Chủ Bot Tối Cao', value: '`!bot off` / `!bot on` - Tắt / Bật bot tạm thời\n`!xu reset @user` - Reset xu về 0\n`!admin add/remove @user` - Cấp/tước quyền Admin', inline: false }
+                { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
+                { name: '💰 Hệ Thống Tiền Tệ', value: `\`${PREFIX}coins [@user]\` - Xem số dư xu\n\`${PREFIX}daily\` - Điểm danh hằng ngày nhận 50 xu\n\`${PREFIX}top\` - Xem bảng xếp hạng top 10`, inline: false },
+                { name: '🎮 Mini-Game & Giải Trí', value: `\`${PREFIX}gai\` - Quay Gacha ảnh anime (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}roll <xu> <tai/xiu>\` - Chơi Tài Xỉu\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
+                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` - Ban thành viên\n\`${PREFIX}unban <ID>\` - Gỡ ban\n\`${PREFIX}mute @user\` - Mute 24h\n\`${PREFIX}unmute @user\` - Gỡ mute`, inline: false },
+                { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\` - Tắt/Bật bot\n\`${PREFIX}xu reset @user\` - Reset xu\n\`${PREFIX}admin add/remove @user\` - Quản lý Admin`, inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -172,8 +183,8 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [menuEmbed] });
     }
 
-    // --- Xem số dư (Bản thân hoặc người khác) ---
-    if (message.content === '!coins' || message.content === '!balance' || message.content.startsWith('!coins ')) {
+    // --- Xem số dư ---
+    if (command === 'coins' || command === 'balance') {
         const targetUser = message.mentions.users.first() || message.author;
         const targetData = getUser(targetUser.id);
         const formattedCoins = Number(targetData.coins).toLocaleString('vi-VN');
@@ -182,7 +193,7 @@ client.on('messageCreate', async message => {
     }
 
     // --- Điểm danh hằng ngày ---
-    if (message.content === '!daily') {
+    if (command === 'daily') {
         const cooldownTime = 24 * 60 * 60 * 1000;
         const now = Date.now();
         const timeLeft = cooldownTime - (now - user.lastDaily);
@@ -200,7 +211,7 @@ client.on('messageCreate', async message => {
     }
 
     // --- Bảng xếp hạng ---
-    if (message.content === '!top') {
+    if (command === 'top') {
         const sorted = Object.entries(db.users)
             .sort((a, b) => b[1].coins - a[1].coins)
             .slice(0, 10);
@@ -215,17 +226,16 @@ client.on('messageCreate', async message => {
     }
 
     // --- QUẢN LÝ ADMIN ---
-    if (message.content.startsWith('!admin ')) {
+    if (command === 'admin') {
         if (userId !== OWNER_ID) {
             return message.reply('❌ Chỉ có Chủ Bot tối cao mới có quyền quản lý danh sách Admin!');
         }
 
-        const args = message.content.split(' ');
-        const action = args[1];
+        const action = args[0];
         const targetUser = message.mentions.users.first();
 
         if (!targetUser || (action !== 'add' && action !== 'remove')) {
-            return message.reply('Cách dùng: `!admin add @user` hoặc `!admin remove @user`');
+            return message.reply(`Cách dùng: \`${PREFIX}admin add @user\` hoặc \`${PREFIX}admin remove @user\``);
         }
 
         if (!db.admins) db.admins = [];
@@ -248,76 +258,55 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- Lệnh Admin bơm xu (!xu add) ---
-    if (message.content.startsWith('!xu add ')) {
+    // --- Lệnh XU ---
+    if (command === 'xu') {
+        const subAction = args[0];
+        
+        if (subAction === 'reset') {
+            if (userId !== OWNER_ID) {
+                return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
+            }
+            const target = message.mentions.users.first();
+            if (!target) return message.reply(`Cách dùng: \`${PREFIX}xu reset @người_dùng\``);
+
+            const targetUser = getUser(target.id);
+            targetUser.coins = 0;
+            saveDb();
+            return message.reply(`🔄 Đã reset số dư của **${target.username}** về **0 xu** thành công!`);
+        }
+
         if (!isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh này!');
         }
 
-        const args = message.content.split(' ');
-        const amount = parseInt(args[2]);
+        const amount = parseInt(args[1]);
         const target = message.mentions.users.first() || message.author;
 
-        if (isNaN(amount)) {
-            return message.reply('Cách dùng: `!xu add <số lượng> @người_dùng`');
+        if (subAction === 'add') {
+            if (isNaN(amount)) return message.reply(`Cách dùng: \`${PREFIX}xu add <số lượng> @người_dùng\``);
+            const targetUser = getUser(target.id);
+            targetUser.coins += amount;
+            saveDb();
+            return message.reply(`✅ Đã cộng **${amount.toLocaleString('vi-VN')} xu** cho **${target.username}**. Tổng ví: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
         }
 
-        const targetUser = getUser(target.id);
-        targetUser.coins += amount;
-        saveDb();
-
-        return message.reply(`✅ Admin đã cộng **${amount.toLocaleString('vi-VN')} xu** cho **${target.username}**. Tổng ví: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
-    }
-
-    // --- Lệnh Admin trừ xu (!xu sub) ---
-    if (message.content.startsWith('!xu sub ')) {
-        if (!isAdmin(userId, message.member)) {
-            return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh này!');
+        if (subAction === 'sub') {
+            if (isNaN(amount) || amount <= 0) return message.reply(`Cách dùng: \`${PREFIX}xu sub <số lượng> @người_dùng\``);
+            const targetUser = getUser(target.id);
+            targetUser.coins = Math.max(0, targetUser.coins - amount);
+            saveDb();
+            return message.reply(`✅ Đã trừ **${amount.toLocaleString('vi-VN')} xu** của **${target.username}**. Tổng ví còn lại: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
         }
-
-        const args = message.content.split(' ');
-        const amount = parseInt(args[2]);
-        const target = message.mentions.users.first() || message.author;
-
-        if (isNaN(amount) || amount <= 0) {
-            return message.reply('Cách dùng: `!xu sub <số lượng> @người_dùng`');
-        }
-
-        const targetUser = getUser(target.id);
-        targetUser.coins = Math.max(0, targetUser.coins - amount);
-        saveDb();
-
-        return message.reply(`✅ Admin đã trừ **${amount.toLocaleString('vi-VN')} xu** của **${target.username}**. Tổng ví còn lại: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
-    }
-
-    // --- Lệnh Reset xu (Chỉ Chủ Bot Tối Cao) ---
-    if (message.content.startsWith('!xu reset ')) {
-        if (userId !== OWNER_ID) {
-            return message.reply('❌ Lệnh này chỉ dành riêng cho Chủ Bot Tối Cao!');
-        }
-
-        const target = message.mentions.users.first();
-        if (!target) {
-            return message.reply('Cách dùng: `!xu reset @người_dùng`');
-        }
-
-        const targetUser = getUser(target.id);
-        targetUser.coins = 0;
-        saveDb();
-
-        return message.reply(`🔄 Đã reset số dư của **${target.username}** về **0 xu** thành công!`);
     }
 
     // --- Lệnh Ban thành viên ---
-    if (message.content.startsWith('!ban ')) {
+    if (command === 'ban') {
         if (!isAdmin(userId, message.member)) {
-            return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh ban thành viên!');
+            return message.reply('❌ Bạn không có quyền Admin!');
         }
 
         const targetMember = message.mentions.members.first();
-        if (!targetMember) {
-            return message.reply('Cách dùng: `!ban @người_dùng`');
-        }
+        if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}ban @người_dùng\``);
 
         if (!targetMember.bannable) {
             return message.reply('❌ Bot không đủ quyền hạn để ban người này.');
@@ -332,34 +321,30 @@ client.on('messageCreate', async message => {
     }
 
     // --- Lệnh Unban thành viên bằng ID ---
-    if (message.content.startsWith('!unban ')) {
+    if (command === 'unban') {
         if (!isAdmin(userId, message.member)) {
-            return message.reply('❌ Bạn không có quyền Admin để sử dụng lệnh này!');
+            return message.reply('❌ Bạn không có quyền Admin!');
         }
 
-        const args = message.content.split(' ');
-        const targetId = args[1];
-
-        if (!targetId) {
-            return message.reply('Cách dùng: `!unban <ID_Discord>`');
-        }
+        const targetId = args[0];
+        if (!targetId) return message.reply(`Cách dùng: \`${PREFIX}unban <ID_Discord>\``);
 
         try {
             await message.guild.members.unban(targetId);
-            return message.reply(`✅ Đã gỡ ban thành công cho tài khoản có ID: **${targetId}**! Họ có thể vào lại server.`);
+            return message.reply(`✅ Đã gỡ ban thành công cho tài khoản có ID: **${targetId}**!`);
         } catch (err) {
             return message.reply('❌ Không tìm thấy ID này trong danh sách bị ban hoặc ID không hợp lệ.');
         }
     }
 
     // --- Lệnh Mute thành viên ---
-    if (message.content.startsWith('!mute ')) {
+    if (command === 'mute') {
         if (!isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin!');
         }
 
         const targetMember = message.mentions.members.first();
-        if (!targetMember) return message.reply('Cách dùng: `!mute @người_dùng`');
+        if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}mute @người_dùng\``);
 
         try {
             await targetMember.timeout(24 * 60 * 60 * 1000, 'Bị Mute bởi Admin');
@@ -370,50 +355,49 @@ client.on('messageCreate', async message => {
     }
 
     // --- Lệnh Unmute thành viên ---
-    if (message.content.startsWith('!unmute ')) {
+    if (command === 'unmute') {
         if (!isAdmin(userId, message.member)) {
             return message.reply('❌ Bạn không có quyền Admin!');
         }
 
         const targetMember = message.mentions.members.first();
-        if (!targetMember) return message.reply('Cách dùng: `!unmute @người_dùng`');
+        if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}unmute @người_dùng\``);
 
         try {
             await targetMember.timeout(null, 'Gỡ Mute');
-            return message.reply(`✅ Đã gỡ mute cho **${targetMember.user.username}**. Họ đã có thể chat lại bình thường.`);
+            return message.reply(`✅ Đã gỡ mute cho **${targetMember.user.username}**.`);
         } catch (err) {
             return message.reply('❌ Có lỗi xảy ra khi gỡ mute.');
         }
     }
 
     // --- BẢNG GIÁ CÁ ---
-    if (message.content === '!caucalist' || message.content === '!listcau') {
+    if (command === 'caucalist' || command === 'listcau') {
         const listEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle('📖 BẢNG GIÁ TRỊ CÁ & TỈ LỆ CÂU')
-            .setDescription('Phí mỗi lần quăng mồi câu (`!cauca`) là **30 xu** (Không giới hạn thời gian chờ). Dưới đây là danh sách các loài cá và số xu khi bán:')
+            .setDescription(`Phí mỗi lần quăng mồi câu (\`${PREFIX}cauca\`) là **30 xu**.`)
             .addFields(
                 { 
                     name: '🎣 Danh sách cá', 
-                    value: '🗑️ **Chiếc giày rách** - 10 xu *(Tỉ lệ: 40%)\n' +
-                           '🐟 **Cá rô phi** - 35 xu *(Tỉ lệ: 30%)\n' +
-                           '🐠 **Cá hồi** - 60 xu *(Tỉ lệ: 20%)\n' +
-                           '🦈 **Cá mập con** - 150 xu *(Tỉ lệ: 8%)\n' +
-                           '🐳 **Cá voi thần thoại** - 400 xu *(Tỉ lệ: 2%)*', 
+                    value: '🗑️ **Chiếc giày rách** - 10 xu *(40%)\n' +
+                           '🐟 **Cá rô phi** - 35 xu *(30%)\n' +
+                           '🐠 **Cá hồi** - 60 xu *(20%)\n' +
+                           '🦈 **Cá mập con** - 150 xu *(8%)\n' +
+                           '🐳 **Cá voi thần thoại** - 400 xu *(2%)*', 
                     inline: false 
                 }
             )
-            .setFooter({ text: 'Dùng lệnh !cauca để thử vận may ngay!' })
             .setTimestamp();
 
         return message.reply({ embeds: [listEmbed] });
     }
 
-    // --- Mini-game Câu cá (Không giới hạn thời gian) ---
-    if (message.content === '!cauca') {
+    // --- Mini-game Câu cá ---
+    if (command === 'cauca') {
         const cost = 30;
         if (user.coins < cost) {
-            return message.reply(`🎣 Bạn không đủ **${cost} xu** để mua mồi câu! Hãy dùng \`!daily\` để nhận xu nhé.`);
+            return message.reply(`🎣 Bạn không đủ **${cost} xu** để mua mồi câu! Dùng \`${PREFIX}daily\` để nhận xu.`);
         }
 
         user.coins -= cost;
@@ -442,14 +426,14 @@ client.on('messageCreate', async message => {
         user.coins += caughtFish.price;
         saveDb();
 
-        return message.reply(`🎣 Bạn quăng mồi và câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư hiện tại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+        return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
     // --- Gacha ảnh anime ---
-    if (message.content === '!gai') {
+    if (command === 'gai') {
         const cost = 20;
         if (user.coins < cost) {
-            return message.reply(`Bạn không đủ xu để quay! Cần **${cost} xu** để dùng lệnh \`!gai\`.`);
+            return message.reply(`Bạn cần **${cost} xu** để dùng lệnh \`${PREFIX}gai\`.`);
         }
 
         user.coins -= cost;
@@ -469,29 +453,27 @@ client.on('messageCreate', async message => {
         const gachaEmbed = new EmbedBuilder()
             .setColor(0xFF00FF)
             .setTitle(`✨ Kết quả Gacha của ${message.author.username}`)
-            .setDescription(`Bạn đã quay trúng một bức ảnh anime xinh xắn!\n💰 Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**`)
-            .setImage(randomImg)
-            .setFooter({ text: `Phí quay: ${cost} xu` });
+            .setDescription(`Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**`)
+            .setImage(randomImg);
 
         return message.reply({ embeds: [gachaEmbed] });
     }
 
     // --- Tài xỉu ---
-    if (message.content.startsWith('!roll')) {
-        const args = message.content.split(' ');
-        const bet = parseInt(args[1]);
-        const choice = args[2] ? args[2].toLowerCase() : '';
+    if (command === 'roll') {
+        const bet = parseInt(args[0]);
+        const choice = args[1] ? args[1].toLowerCase() : '';
 
         if (isNaN(bet) || bet <= 0) {
-            return message.reply('Cách chơi: `!roll <số xu cược> <tai/xiu>`');
+            return message.reply(`Cách chơi: \`${PREFIX}roll <số xu cược> <tai/xiu>\``);
         }
 
         if (user.coins < bet) {
-            return message.reply(`Bạn không đủ xu! Bạn chỉ đang có **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`Bạn không đủ xu! Đang có **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
         }
 
         if (choice !== 'tai' && choice !== 'xiu') {
-            return message.reply('Vui lòng chọn đúng cửa cược là `tai` hoặc `xiu` nhé!');
+            return message.reply('Vui lòng chọn đúng cửa cược là `tai` hoặc `xiu`!');
         }
 
         const d1 = Math.floor(Math.random() * 6) + 1;
@@ -504,30 +486,30 @@ client.on('messageCreate', async message => {
         if (choice === result) {
             user.coins += bet;
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng lớn! Nhận được **${bet.toLocaleString('vi-VN')} xu**! Số dư mới: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng! Nhận **${bet.toLocaleString('vi-VN')} xu**!`);
         } else {
             user.coins -= bet;
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**. Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**.`);
         }
     }
 
     // --- Đoán số ---
-    if (message.content === '!game') {
+    if (command === 'game') {
         secretNumber = Math.floor(Math.random() * 10) + 1;
-        return message.reply('🎮 Đã tạo xong số bí mật từ **1 đến 10**. Gõ `!doan <số>` để đoán nhé!');
+        return message.reply(`🎮 Đã tạo số bí mật từ 1-10. Gõ \`${PREFIX}doan <số>\` để đoán!`);
     }
 
-    if (message.content.startsWith('!doan ')) {
-        if (!secretNumber) return message.reply('Chưa có game nào đang chạy, gõ `!game` để bắt đầu.');
-        const guess = parseInt(message.content.split(' ')[1]);
+    if (command === 'doan') {
+        if (!secretNumber) return message.reply(`Chưa có game nào đang chạy, gõ \`${PREFIX}game\` để bắt đầu.`);
+        const guess = parseInt(args[0]);
         
-        if (isNaN(guess)) return message.reply('Vui lòng nhập số hợp lệ! Ví dụ: `!doan 5`');
+        if (isNaN(guess)) return message.reply(`Vui lòng nhập số! Ví dụ: \`${PREFIX}doan 5\``);
 
         if (guess === secretNumber) {
             user.coins += 30;
             saveDb();
-            message.reply(`🏆 Chính xác! Số bí mật là **${secretNumber}**. Nhận thưởng **30 xu**!`);
+            message.reply(`🏆 Chính xác! Số bí mật là **${secretNumber}**. Nhận **30 xu**!`);
             secretNumber = null;
         } else if (guess < secretNumber) {
             return message.reply('📈 Số bí mật **lớn hơn** (cao hơn)!');
@@ -537,9 +519,9 @@ client.on('messageCreate', async message => {
     }
 
     // --- Xóa chat ---
-    if (message.content.startsWith('!clear ')) {
+    if (command === 'clear') {
         if (!isAdmin(userId, message.member)) return message.reply('Bạn không có quyền!');
-        const amount = parseInt(message.content.split(' ')[1]);
+        const amount = parseInt(args[0]);
         if (isNaN(amount) || amount < 1 || amount > 100) return message.reply('Nhập số từ 1 đến 100.');
         
         await message.channel.bulkDelete(amount + 1, true).catch(() => {});
@@ -548,7 +530,7 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    if (message.content === '!hello') {
+    if (command === 'hello') {
         return message.reply('Chào bạn! Bot Béo Fat Ass vẫn đang chạy siêu mượt!');
     }
 });

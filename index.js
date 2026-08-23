@@ -1,7 +1,9 @@
-const { Client, GatewayIntentBits, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
-const Canvas = require('canvas');
+
+// Điền ID kênh chat của bạn vào đây nếu muốn bot thông báo mỗi khi khởi động/update
+const NOTIFICATION_CHANNEL_ID = "ĐIỀN_ID_KENH_VAO_ĐÂY"; 
 
 // 1. Khởi tạo Express server (giữ bot online 24/7 trên Render)
 const app = express();
@@ -54,7 +56,7 @@ function getUser(userId) {
             lastFish: 0,
             lastRob: 0,
             streak: 0,
-            pet: null // { name, level, exp, lastFed, lastWork }
+            pet: null 
         };
         saveDb();
     }
@@ -78,8 +80,26 @@ function isAdmin(userId, member) {
     return false;
 }
 
-client.once('ready', () => {
+client.once('ready', async () => {
     console.log(`Bot đã sẵn sàng! Đăng nhập với tên: ${client.user.tag}`);
+
+    // Gửi tin nhắn thông báo update lên kênh đã chọn
+    if (NOTIFICATION_CHANNEL_ID && NOTIFICATION_CHANNEL_ID !== "ĐIỀN_ID_KENH_VAO_ĐÂY") {
+        try {
+            const channel = await client.channels.fetch(NOTIFICATION_CHANNEL_ID);
+            if (channel && channel.isTextBased()) {
+                const updateEmbed = new EmbedBuilder()
+                    .setColor(0x00FF00)
+                    .setTitle('🚀 BOT ĐÃ CẬP NHẬT PHIÊN BẢN MỚI!')
+                    .setDescription(`Bot vừa được khởi động lại / cập nhật phiên bản thành công!\nGõ \`${PREFIX}menu\` để xem toàn bộ danh sách lệnh!`)
+                    .setTimestamp();
+
+                await channel.send({ embeds: [updateEmbed] });
+            }
+        } catch (err) {
+            console.error('Không thể gửi tin nhắn thông báo update:', err);
+        }
+    }
 });
 
 // Chào mừng thành viên mới
@@ -117,7 +137,7 @@ client.on('guildMemberRemove', member => {
     channel.send({ embeds: [byeEmbed] });
 });
 
-// Dùng Map để lưu số bí mật riêng cho từng kênh (Tránh xung đột nhiều người chơi cùng lúc)
+// Dùng Map để lưu số bí mật riêng cho từng kênh
 const secretNumbers = new Map();
 const PREFIX = '.'; 
 
@@ -175,7 +195,7 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
                 { name: '💰 Kinh Tế & Điểm Danh', value: `\`${PREFIX}coins [@user]\` - Xem số dư xu\n\`${PREFIX}daily\` - Điểm danh chuỗi Streak nhận quà tăng dần\n\`${PREFIX}top\` - Xem bảng xếp hạng top 10`, inline: false },
-                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Quay Gacha ảnh anime (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng\n\`${PREFIX}bantho @user\` - Tạo ảnh bàn thờ troll bạn bè`, inline: false },
+                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Quay Gacha ảnh anime (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
                 { name: '🐾 Hệ Thống Thú Cưng (Pet)', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi pet\n\`${PREFIX}pet\` - Xem thông tin pet\n\`${PREFIX}pet feed\` - Cho pet ăn\n\`${PREFIX}pet work\` - Sai pet đi kiếm xu`, inline: false },
                 { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` / \`${PREFIX}unban <ID>\` - Ban/Unban\n\`${PREFIX}mute @user\` / \`${PREFIX}unmute @user\` - Mute/Unmute`, inline: false },
                 { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\` - Tắt/Bật bot\n\`${PREFIX}xu reset @user\` - Reset xu\n\`${PREFIX}admin add/remove @user\` - Quản lý Admin`, inline: false }
@@ -198,7 +218,7 @@ client.on('messageCreate', async message => {
     // --- Điểm danh hằng ngày kết hợp STREAK ---
     if (command === 'daily') {
         const cooldownTime = 24 * 60 * 60 * 1000;
-        const streakTimeout = 48 * 60 * 60 * 1000; // Quá 48 tiếng mất chuỗi
+        const streakTimeout = 48 * 60 * 60 * 1000; 
         const now = Date.now();
         const diff = now - user.lastDaily;
 
@@ -210,14 +230,13 @@ client.on('messageCreate', async message => {
         }
 
         if (user.lastDaily !== 0 && diff > streakTimeout) {
-            user.streak = 1; // Mất chuỗi, reset về 1
+            user.streak = 1; 
         } else {
             user.streak += 1;
         }
 
         user.lastDaily = now;
         
-        // Thưởng tăng dần theo streak (Mỗi ngày +15 xu, tối đa mốc 200 xu)
         const baseReward = 50;
         const streakBonus = Math.min((user.streak - 1) * 15, 150);
         const totalReward = baseReward + streakBonus;
@@ -477,7 +496,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [gachaEmbed] });
     }
 
-    // --- Tài xỉu (.xx) THẮNG X2 & HỖ TRỢ .xx all ---
+    // --- Tài xỉu (.xx) ---
     if (command === 'xx') {
         let bet;
         let choice;
@@ -499,7 +518,7 @@ client.on('messageCreate', async message => {
         }
 
         if (choice !== 'tai' && choice !== 'xiu') {
-            return message.reply('Vui lòng chọn đúng cửa cược là `tai` hoặc `xiu`! (Ví dụ: `.xx all tai` hoặc `.xx 100 xiu`)');
+            return message.reply('Vui lòng chọn đúng cửa cược là `tai` hoặc `xiu`!');
         }
 
         const d1 = Math.floor(Math.random() * 6) + 1;
@@ -512,11 +531,11 @@ client.on('messageCreate', async message => {
         if (choice === result) {
             user.coins += (bet * 2);
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng x2! Nhận được **${(bet * 2).toLocaleString('vi-VN')} xu**! Số dư mới: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n🎉 Thắng x2! Nhận được **${(bet * 2).toLocaleString('vi-VN')} xu**!`);
         } else {
             user.coins -= bet;
             saveDb();
-            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**. Số dư còn lại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`🎲 Kết quả: **[${d1}] [${d2}] [${d3}]** (Tổng: **${total}** - **${result.toUpperCase()}**).\n😢 Thua mất **${bet.toLocaleString('vi-VN')} xu**.`);
         }
     }
 
@@ -526,50 +545,50 @@ client.on('messageCreate', async message => {
         if (!targetMember) return message.reply(`Cách dùng: \`${PREFIX}rob @người_dùng\``);
         if (targetMember.id === userId) return message.reply('❌ Không thể tự cướp chính mình được!');
 
-        const cooldown = 30 * 60 * 1000; // Cooldown 30 phút
+        const cooldown = 30 * 60 * 1000; 
         const now = Date.now();
         if (now - user.lastRob < cooldown) {
             const timeLeft = Math.ceil((cooldown - (now - user.lastRob)) / (60 * 1000));
-            return message.reply(`⏳ Bạn vừa đi cướp về, cảnh sát đang canh gác! Hãy đợi **${timeLeft} phút** nữa mới được hành động.`);
+            return message.reply(`⏳ Đợi **${timeLeft} phút** nữa mới được hành động.`);
         }
 
         if (user.coins < 50) {
-            return message.reply('❌ Bạn cần ít nhất **50 xu** trong ví để làm phí lót đường đi cướp!');
+            return message.reply('❌ Bạn cần ít nhất **50 xu** phí lót đường!');
         }
 
         const targetUser = getUser(targetMember.id);
         if (targetUser.coins < 50) {
-            return message.reply(`❌ Mục tiêu **${targetMember.username}** quá nghèo (dưới 50 xu), tha cho họ đi!`);
+            return message.reply(`❌ Mục tiêu quá nghèo, tha cho họ đi!`);
         }
 
         user.lastRob = now;
-        const success = Math.random() < 0.45; // 45% tỉ lệ thành công
+        const success = Math.random() < 0.45; 
 
         if (success) {
             const stolenAmount = Math.floor(Math.random() * (targetUser.coins * 0.3)) + 10; 
             targetUser.coins -= stolenAmount;
             user.coins += stolenAmount;
             saveDb();
-            return message.reply(`🥷 Cướp thành công! Bạn đã trấn lột được **${stolenAmount.toLocaleString('vi-VN')} xu** từ **${targetMember.username}**!`);
+            return message.reply(`🥷 Cướp thành công **${stolenAmount.toLocaleString('vi-VN')} xu** từ **${targetMember.username}**!`);
         } else {
             const fine = 40; 
             user.coins = Math.max(0, user.coins - fine);
             saveDb();
-            return message.reply(`🚨 Bị công an tóm cổ! Bạn thất bại và bị phạt mất **${fine} xu** tiền bảo lãnh.`);
+            return message.reply(`🚨 Bị công an tóm cổ! Phạt mất **${fine} xu**.`);
         }
     }
 
-    // --- LỆNH XỔ SỐ LÔ ĐỀ (.lode <số> <xu>) ---
+    // --- LỆNH XỔ SỐ LÔ ĐỀ ---
     if (command === 'lode' || command === 'xoaso') {
         const choiceNum = args[0];
         const bet = parseInt(args[1]);
 
         if (!choiceNum || isNaN(bet) || bet <= 0 || choiceNum.length !== 2 || isNaN(parseInt(choiceNum))) {
-            return message.reply(`Cách chơi: \`${PREFIX}lode <số từ 00 đến 99> <số xu cược>\`\nVí dụ: \`${PREFIX}lode 88 100\` (Trúng ăn x70 lần)`);
+            return message.reply(`Cách chơi: \`${PREFIX}lode <số từ 00 đến 99> <số xu cược>\``);
         }
 
         if (user.coins < bet) {
-            return message.reply(`Bạn không đủ xu! Đang có **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`Bạn không đủ xu!`);
         }
 
         user.coins -= bet;
@@ -581,10 +600,10 @@ client.on('messageCreate', async message => {
             const reward = bet * 70;
             user.coins += reward;
             saveDb();
-            return message.reply(`🎰 Kết quả xổ số hôm nay về: **[${winningNum}]**.\n👑 CHÚC MỪNG! Bạn đã trúng lô và húp trọn **${reward.toLocaleString('vi-VN')} xu** (x70 tiền cược)!`);
+            return message.reply(`🎰 Kết quả: **[${winningNum}]**. Trúng lô húp **${reward.toLocaleString('vi-VN')} xu**!`);
         } else {
             saveDb();
-            return message.reply(`🎰 Kết quả xổ số về: **[${winningNum}]**. Tiếc quá, con số **${choiceNum}** của bạn không trúng. Mất **${bet.toLocaleString('vi-VN')} xu**!`);
+            return message.reply(`🎰 Kết quả: **[${winningNum}]**. Xịt lô, mất **${bet.toLocaleString('vi-VN')} xu**!`);
         }
     }
 
@@ -593,27 +612,21 @@ client.on('messageCreate', async message => {
         const subAction = args[0];
 
         if (subAction === 'buy') {
-            if (user.pet) return message.reply(`⚠️ Bạn đã nuôi thú cưng tên **${user.pet.name}** rồi!`);
+            if (user.pet) return message.reply(`⚠️ Bạn đã có pet rồi!`);
             const petName = args.slice(1).join(' ');
             const cost = 200;
-            if (!petName) return message.reply(`Cách dùng: \`${PREFIX}pet buy <tên_pet>\` (Phí nhận nuôi: 200 xu)`);
+            if (!petName) return message.reply(`Cách dùng: \`${PREFIX}pet buy <tên_pet>\``);
             
-            if (user.coins < cost) return message.reply(`❌ Bạn cần **${cost} xu** để nhận nuôi thú cưng.`);
+            if (user.coins < cost) return message.reply(`❌ Cần **${cost} xu** để mua.`);
 
             user.coins -= cost;
-            user.pet = {
-                name: petName,
-                level: 1,
-                exp: 0,
-                lastFed: 0,
-                lastWork: 0
-            };
+            user.pet = { name: petName, level: 1, exp: 0, lastFed: 0, lastWork: 0 };
             saveDb();
-            return message.reply(`🎉 Chúc mừng bạn đã nhận nuôi thành công thú cưng **${petName}**! Dùng \`${PREFIX}pet\` để xem trạng thái.`);
+            return message.reply(`🎉 Nhận nuôi thành công pet **${petName}**!`);
         }
 
         if (!user.pet) {
-            return message.reply(`🐾 Bạn chưa có thú cưng nào! Dùng \`${PREFIX}pet buy <tên>\` với giá **200 xu** để nhận nuôi ngay.`);
+            return message.reply(`🐾 Bạn chưa có thú cưng! Dùng \`${PREFIX}pet buy <tên>\` (200 xu).`);
         }
 
         const p = user.pet;
@@ -622,128 +635,72 @@ client.on('messageCreate', async message => {
             const feedCooldown = 4 * 60 * 60 * 1000; 
             const now = Date.now();
             if (now - p.lastFed < feedCooldown) {
-                const h = Math.ceil((feedCooldown - (now - p.lastFed)) / (60 * 60 * 1000));
-                return message.reply(`🍖 Thú cưng **${p.name}** vẫn còn no! Hãy cho ăn lại sau **${h} tiếng** nữa.`);
+                return message.reply(`🍖 Pet vẫn còn no!`);
             }
-
             p.lastFed = now;
             p.exp += 20;
             if (p.exp >= p.level * 50) {
                 p.level += 1;
                 p.exp = 0;
                 saveDb();
-                return message.reply(`🎉 Thú cưng **${p.name}** đã được cho ăn và thăng lên **Level ${p.level}**! 🚀`);
+                return message.reply(`🎉 Pet lên **Level ${p.level}**!`);
             }
             saveDb();
-            return message.reply(`🍖 Bạn đã cho **${p.name}** ăn ngon lành! (EXP hiện tại: ${p.exp}/${p.level * 50})`);
+            return message.reply(`🍖 Đã cho pet ăn!`);
         }
 
         if (subAction === 'work') {
             const workCooldown = 1 * 60 * 60 * 1000; 
             const now = Date.now();
             if (now - p.lastWork < workCooldown) {
-                const m = Math.ceil((workCooldown - (now - p.lastWork)) / (60 * 1000));
-                return message.reply(`⏳ Thú cưng đang mệt, hãy cho nghỉ ngơi thêm **${m} phút** nữa.`);
+                return message.reply(`⏳ Pet đang mệt.`);
             }
-
             p.lastWork = now;
             const earned = p.level * 25 + Math.floor(Math.random() * 20);
             user.coins += earned;
             saveDb();
-            return message.reply(`💼 Thú cưng **${p.name}** (Lv.${p.level}) đã đi làm kiếm về cho chủ nhân **${earned} xu**!`);
+            return message.reply(`💼 Pet kiếm về **${earned} xu**!`);
         }
 
         const petEmbed = new EmbedBuilder()
             .setColor(0x3498DB)
-            .setTitle(`🐾 Thông Tin Thú Cưng: ${p.name}`)
-            .setDescription(`Chủ nhân: <@${userId}>\n⭐ **Level:** ${p.level}\n✨ **Kinh nghiệm (EXP):** ${p.exp} / ${p.level * 50}`)
-            .addFields(
-                { name: 'Lệnh tương tác', value: `\`${PREFIX}pet feed\` - Cho pet ăn tăng cấp\n\`${PREFIX}pet work\` - Sai pet đi kiếm xu`, inline: false }
-            )
-            .setTimestamp();
+            .setTitle(`🐾 Thú Cưng: ${p.name}`)
+            .setDescription(`⭐ **Level:** ${p.level}\n✨ **EXP:** ${p.exp} / ${p.level * 50}`);
 
         return message.reply({ embeds: [petEmbed] });
     }
 
-    // --- LỆNH TẠO ẢNH BÀN THỜ (.bantho @user) ---
-    if (command === 'bantho' || command === 'rip') {
-        const targetMember = message.mentions.users.first() || message.author;
-
-        try {
-            const canvas = Canvas.createCanvas(500, 600);
-            const ctx = canvas.getContext('2d');
-
-            // Ảnh nền bàn thờ mẫu (Bạn có thể thay link ảnh nền khác bằng cách đổi URL này)
-            const backgroundUrl = 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=500'; 
-            const background = await Canvas.loadImage(backgroundUrl);
-            ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
-
-            // Tải và vẽ Avatar của người dùng lên khung
-            const avatarURL = targetMember.displayAvatarURL({ extension: 'png', size: 256 });
-            const avatar = await Canvas.loadImage(avatarURL);
-
-            // Tọa độ và kích thước khung ảnh chân dung (có thể tinh chỉnh x, y, width, height cho vừa khung ảnh nền)
-            const x = 175; 
-            const y = 150; 
-            const width = 150; 
-            const height = 150;
-
-            ctx.drawImage(avatar, x, y, width, height);
-
-            // Thêm tên người dùng lên ảnh
-            ctx.font = 'bold 24px sans-serif';
-            ctx.fillStyle = '#FFFFFF';
-            ctx.textAlign = 'center';
-            ctx.fillText(targetMember.username, canvas.width / 2, 350);
-
-            // Xuất file và gửi lên Discord
-            const buffer = canvas.toBuffer();
-            const file = new AttachmentBuilder(buffer, { name: 'bantho.png' });
-
-            return message.reply({ 
-                content: `🕯️ Thành kính phân ưu cùng **${targetMember.username}**... Nam mô a di đà phật! 🙏`,
-                files: [file] 
-            });
-
-        } catch (err) {
-            console.error(err);
-            return message.reply('❌ Đã xảy ra lỗi khi tạo ảnh bàn thờ. Vui lòng thử lại sau!');
-        }
-    }
-
-    // --- Đoán số (Đã khắc phục lỗi toàn cục bằng Map theo channelId) ---
+    // --- Đoán số ---
     if (command === 'game') {
         const num = Math.floor(Math.random() * 10) + 1;
         secretNumbers.set(message.channel.id, num);
-        return message.reply(`🎮 Đã tạo số bí mật từ 1-10 cho kênh này. Gõ \`${PREFIX}doan <số>\` để đoán!`);
+        return message.reply(`🎮 Đã tạo số bí mật từ 1-10. Gõ \`${PREFIX}doan <số>\`!`);
     }
 
     if (command === 'doan') {
         const currentSecret = secretNumbers.get(message.channel.id);
-        if (!currentSecret) return message.reply(`Chưa có game nào đang chạy trong kênh này, gõ \`${PREFIX}game\` để bắt đầu.`);
+        if (!currentSecret) return message.reply(`Chưa có game, gõ \`${PREFIX}game\` trước.`);
         
         const guess = parseInt(args[0]);
-        if (isNaN(guess)) return message.reply(`Vui lòng nhập số! Ví dụ: \`${PREFIX}doan 5\``);
+        if (isNaN(guess)) return message.reply(`Nhập số hợp lệ!`);
 
         if (guess === currentSecret) {
             user.coins += 30;
             saveDb();
-            message.reply(`🏆 Chính xác! Số bí mật là **${currentSecret}**. Nhận **30 xu**!`);
+            message.reply(`🏆 Chính xác! Nhận **30 xu**!`);
             secretNumbers.delete(message.channel.id);
         } else if (guess < currentSecret) {
-            return message.reply('📈 Số bí mật **lớn hơn** (cao hơn)!');
+            return message.reply('📈 Số lớn hơn!');
         } else {
-            return message.reply('📉 Số bí mật **nhỏ hơn** (thấp hơn)!');
+            return message.reply('📉 Số nhỏ hơn!');
         }
     }
 
-    // --- Xóa chat (.clear <số>) ---
+    // --- Xóa chat ---
     if (command === 'clear') {
-        if (!isAdmin(userId, message.member)) return message.reply('Bạn không có quyền!');
-        
+        if (!isAdmin(userId, message.member)) return message.reply('Không có quyền!');
         const amount = parseInt(args[0]);
-        if (isNaN(amount) || amount < 1 || amount > 100) return message.reply('Nhập số lượng tin nhắn cần xóa từ 1 đến 100 (Ví dụ: `.clear 10`).');
-        
+        if (isNaN(amount) || amount < 1 || amount > 100) return message.reply('Nhập từ 1 đến 100.');
         await message.channel.bulkDelete(amount + 1, true).catch(() => {});
         const notifyMsg = await message.channel.send(`Đã xóa ${amount} tin nhắn!`);
         setTimeout(() => notifyMsg.delete().catch(() => {}), 3000);
@@ -751,7 +708,7 @@ client.on('messageCreate', async message => {
     }
 
     if (command === 'hello') {
-        return message.reply('Chào bạn! Bot Béo Fat Ass vẫn đang chạy siêu mượt với toàn bộ hệ thống minigame cực đỉnh!');
+        return message.reply('Chào bạn! Bot vẫn đang hoạt động mượt mà!');
     }
 });
 

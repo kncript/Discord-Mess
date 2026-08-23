@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const axios = require('axios');
 
 // Điền ID kênh chat của bạn vào đây nếu muốn bot thông báo mỗi khi khởi động/update
-const NOTIFICATION_CHANNEL_ID = "ĐIỀN_ID_KENH_VAO_ĐÂY"; 
+const NOTIFICATION_CHANNEL_ID = "1540977738951819335"; 
 
 // 1. Khởi tạo Express server (giữ bot online 24/7 trên Render)
 const app = express();
@@ -29,10 +29,12 @@ if (mongoURI) {
     console.log('⚠️ Không tìm thấy biến MONGO_URI trong môi trường!');
 }
 
-// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu
+// Khởi tạo Mongoose Schema & Model lưu trữ dữ liệu (Thêm trường bank và lastBankInterest)
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     coins: { type: Number, default: 100 },
+    bank: { type: Number, default: 0 },
+    lastBankInterest: { type: Number, default: Date.now() },
     lastDaily: { type: Number, default: 0 },
     lastFish: { type: Number, default: 0 },
     lastRob: { type: Number, default: 0 },
@@ -52,12 +54,29 @@ const configSchema = new mongoose.Schema({
 });
 const Config = mongoose.model('Config', configSchema);
 
-// Hàm lấy dữ liệu user từ MongoDB
+// Hàm lấy dữ liệu user từ MongoDB (Tự động tính lãi suất ngân hàng 10%/1 giờ)
 async function getUser(userId) {
     let user = await User.findOne({ userId });
     if (!user) {
         user = new User({ userId });
         await user.save();
+    } else {
+        // Tính lãi suất ngân hàng: 10% mỗi 1 giờ trôi qua
+        const now = Date.now();
+        const oneHour = 60 * 60 * 1000;
+        const hoursPassed = Math.floor((now - user.lastBankInterest) / oneHour);
+        
+        if (hoursPassed > 0 && user.bank > 0) {
+            let interestEarned = 0;
+            let currentBank = user.bank;
+            for (let i = 0; i < hoursPassed; i++) {
+                interestEarned += Math.floor(currentBank * 0.1);
+                currentBank += Math.floor(currentBank * 0.1);
+            }
+            user.bank = currentBank;
+            user.lastBankInterest = now - ((now - user.lastBankInterest) % oneHour); // Giữ lại phần dư thời gian
+            await user.save();
+        }
     }
     return user;
 }
@@ -210,11 +229,11 @@ client.on('messageCreate', async message => {
             .setDescription(`Dưới đây là danh sách lệnh đầy đủ (sử dụng tiền tố \`${PREFIX}\`):`)
             .addFields(
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
-                { name: '💰 Kinh Tế & Điểm Danh', value: `\`${PREFIX}coins [@user]\` - Xem số dư xu\n\`${PREFIX}daily\` - Điểm danh chuỗi Streak nhận quà tăng dần\n\`${PREFIX}top\` - Xem bảng xếp hạng top 10`, inline: false },
-                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh waifu ngẫu nhiên từ kho GitHub (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
-                { name: '🐾 Hệ Thống Thú Cưng (Pet)', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi pet\n\`${PREFIX}pet\` - Xem thông tin pet\n\`${PREFIX}pet feed\` - Cho pet ăn\n\`${PREFIX}pet work\` - Sai pet đi kiếm xu`, inline: false },
-                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` / \`${PREFIX}unban <ID>\` - Ban/Unban\n\`${PREFIX}mute @user\` / \`${PREFIX}unmute @user\` - Mute/Unmute`, inline: false },
-                { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\` - Tắt/Bật bot\n\`${PREFIX}xu reset @user\` - Reset xu\n\`${PREFIX}admin add/remove @user\` - Quản lý Admin`, inline: false }
+                { name: '💰 Kinh Tế, Ngân Hàng & Điểm Danh', value: `\`${PREFIX}coins [@user]\` - Xem ví và ngân hàng\n\`${PREFIX}deposit <số xu / all>\` - Gửi tiền vào ngân hàng (Lãi 10%/h)\n\`${PREFIX}withdraw <số xu / all>\` - Rút tiền từ ngân hàng\n\`${PREFIX}daily\` - Điểm danh chuỗi Streak nhận quà\n\`${PREFIX}top\` - Xem bảng xếp hạng`, inline: false },
+                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh waifu ngẫu nhiên từ kho GitHub (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (300k xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu\n\`${PREFIX}rob @user\` - Cướp xu\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề`, inline: false },
+                { name: '🐾 Hệ Thống Thú Cưng (Pet)', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi pet (200 xu)\n\`${PREFIX}pet\` - Xem thông tin pet\n\`${PREFIX}pet feed\` - Cho pet ăn\n\`${PREFIX}pet work\` - Sai pet kiếm xu\n\`${PREFIX}pet sell\` - Bán pet nhận ngẫu nhiên tới 20k xu`, inline: false },
+                { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` / \`${PREFIX}unban <ID>\`\n\`${PREFIX}mute @user\` / \`${PREFIX}unmute @user\``, inline: false },
+                { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\`\n\`${PREFIX}xu reset @user\`\n\`${PREFIX}admin add/remove @user\``, inline: false }
             )
             .setFooter({ text: 'Chúc bạn chơi game vui vẻ tại server!' })
             .setTimestamp();
@@ -222,13 +241,62 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [menuEmbed] });
     }
 
-    // --- Xem số dư ---
+    // --- Xem số dư ví và ngân hàng ---
     if (command === 'coins' || command === 'balance') {
         const targetUser = message.mentions.users.first() || message.author;
         const targetData = await getUser(targetUser.id);
         const formattedCoins = Number(targetData.coins).toLocaleString('vi-VN');
+        const formattedBank = Number(targetData.bank).toLocaleString('vi-VN');
         
-        return message.reply(`💰 Người dùng **${targetUser.username}** đang có **${formattedCoins} xu** trong ví.`);
+        return message.reply(`💰 Tài khoản của **${targetUser.username}**:\n👛 Ví tiền: **${formattedCoins} xu**\n🏦 Ngân hàng (Lãi 10%/h): **${formattedBank} xu**`);
+    }
+
+    // --- Lệnh Gửi tiền vào Ngân hàng (.deposit) ---
+    if (command === 'deposit' || command === 'dep') {
+        let amount;
+        if (args[0] && args[0].toLowerCase() === 'all') {
+            amount = user.coins;
+        } else {
+            amount = parseInt(args[0]);
+        }
+
+        if (isNaN(amount) || amount <= 0) {
+            return message.reply(`Cách dùng: \`${PREFIX}deposit <số xu cần gửi / all>\``);
+        }
+
+        if (user.coins < amount) {
+            return message.reply(`❌ Bạn không có đủ **${amount.toLocaleString('vi-VN')} xu** trong ví để gửi!`);
+        }
+
+        user.coins -= amount;
+        user.bank += amount;
+        await user.save();
+
+        return message.reply(`🏦 Gửi thành công **${amount.toLocaleString('vi-VN')} xu** vào ngân hàng!\n👛 Ví: ${Number(user.coins).toLocaleString('vi-VN')} xu | 🏦 Ngân hàng: ${Number(user.bank).toLocaleString('vi-VN')} xu`);
+    }
+
+    // --- Lệnh Rút tiền từ Ngân hàng (.withdraw) ---
+    if (command === 'withdraw' || command === 'with') {
+        let amount;
+        if (args[0] && args[0].toLowerCase() === 'all') {
+            amount = user.bank;
+        } else {
+            amount = parseInt(args[0]);
+        }
+
+        if (isNaN(amount) || amount <= 0) {
+            return message.reply(`Cách dùng: \`${PREFIX}withdraw <số xu cần rút / all>\``);
+        }
+
+        if (user.bank < amount) {
+            return message.reply(`❌ Ngân hàng của bạn không có đủ **${amount.toLocaleString('vi-VN')} xu** để rút!`);
+        }
+
+        user.bank -= amount;
+        user.coins += amount;
+        await user.save();
+
+        return message.reply(`🏧 Rút thành công **${amount.toLocaleString('vi-VN')} xu** về ví!\n👛 Ví: ${Number(user.coins).toLocaleString('vi-VN')} xu | 🏦 Ngân hàng: ${Number(user.bank).toLocaleString('vi-VN')} xu`);
     }
 
     // --- Điểm danh hằng ngày kết hợp STREAK ---
@@ -271,7 +339,8 @@ client.on('messageCreate', async message => {
         for (let i = 0; i < topUsers.length; i++) {
             const memberObj = await client.users.fetch(topUsers[i].userId).catch(() => ({ username: "Người dùng ẩn danh" }));
             const userCoins = Number(topUsers[i].coins).toLocaleString('vi-VN');
-            text += `**${i + 1}.** ${memberObj.username} - **${userCoins} xu**\n`;
+            const userBank = Number(topUsers[i].bank).toLocaleString('vi-VN');
+            text += `**${i + 1}.** ${memberObj.username} - Ví: **${userCoins} xu** | Ngân hàng: **${userBank} xu**\n`;
         }
         return message.reply(text);
     }
@@ -325,8 +394,9 @@ client.on('messageCreate', async message => {
 
             const targetUser = await getUser(target.id);
             targetUser.coins = 0;
+            targetUser.bank = 0;
             await targetUser.save();
-            return message.reply(`🔄 Đã reset số dư của **${target.username}** về **0 xu** thành công!`);
+            return message.reply(`🔄 Đã reset số dư ví và ngân hàng của **${target.username}** về **0 xu** thành công!`);
         }
 
         if (!await isAdmin(userId, message.member)) {
@@ -341,14 +411,14 @@ client.on('messageCreate', async message => {
             if (isNaN(amount)) return message.reply(`Cách dùng: \`${PREFIX}xu add <số lượng> @người_dùng\``);
             targetUser.coins += amount;
             await targetUser.save();
-            return message.reply(`✅ Đã cộng **${amount.toLocaleString('vi-VN')} xu** cho **${target.username}**. Tổng ví: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`✅ Đã cộng **${amount.toLocaleString('vi-VN')} xu** vào ví cho **${target.username}**. Tổng ví: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
         }
 
         if (subAction === 'sub') {
             if (isNaN(amount) || amount <= 0) return message.reply(`Cách dùng: \`${PREFIX}xu sub <số lượng> @người_dùng\``);
             targetUser.coins = Math.max(0, targetUser.coins - amount);
             await targetUser.save();
-            return message.reply(`✅ Đã trừ **${amount.toLocaleString('vi-VN')} xu** của **${target.username}**. Tổng ví còn lại: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
+            return message.reply(`✅ Đã trừ **${amount.toLocaleString('vi-VN')} xu** ví của **${target.username}**. Tổng ví còn lại: **${Number(targetUser.coins).toLocaleString('vi-VN')} xu**.`);
         }
     }
 
@@ -424,20 +494,20 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- BẢNG GIÁ CÁ ---
+    // --- BẢNG GIÁ CÁ (Cập nhật phí 300k, giá trị giày 30k, cá chép/rô phi 150k) ---
     if (command === 'caucalist' || command === 'listcau') {
         const listEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle('📖 BẢNG GIÁ TRỊ CÁ & TỈ LỆ CÂU')
-            .setDescription(`Phí mỗi lần quăng mồi câu (\`${PREFIX}cauca\`) là **30 xu**.`)
+            .setDescription(`Phí mỗi lần quăng mồi câu (\`${PREFIX}cauca\`) là **300.000 xu**.`)
             .addFields(
                 { 
-                    name: '🎣 Danh sách cá', 
-                    value: '🗑️ **Chiếc giày rách** - 10 xu *(40%)\n' +
-                           '🐟 **Cá rô phi** - 35 xu *(30%)\n' +
-                           '🐠 **Cá hồi** - 60 xu *(20%)\n' +
-                           '🦈 **Cá mập con** - 150 xu *(8%)\n' +
-                           '🐳 **Cá voi thần thoại** - 400 xu *(2%)*', 
+                    name: '🎣 Danh sách vật phẩm & cá', 
+                    value: '🗑️ **Chiếc giày rách** - 30.000 xu *(40%)\n' +
+                           '🐟 **Cá chép / Cá rô phi** - 150.000 xu *(30%)\n' +
+                           '🐠 **Cá hồi** - 350.000 xu *(20%)\n' +
+                           '🦈 **Cá mập con** - 1.000.000 xu *(8%)\n' +
+                           '🐳 **Cá voi thần thoại** - 3.000.000 xu *(2%)*', 
                     inline: false 
                 }
             )
@@ -446,21 +516,21 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [listEmbed] });
     }
 
-    // --- Mini-game Câu cá ---
+    // --- Mini-game Câu cá (Cập nhật phí 300k và giá trị thưởng mới) ---
     if (command === 'cauca') {
-        const cost = 30;
+        const cost = 300000;
         if (user.coins < cost) {
-            return message.reply(`🎣 Bạn không đủ **${cost} xu** để mua mồi câu! Dùng \`${PREFIX}daily\` để nhận xu.`);
+            return message.reply(`🎣 Bạn không đủ **${Number(cost).toLocaleString('vi-VN')} xu** trong ví để mua mồi câu!`);
         }
 
         user.coins -= cost;
 
         const fishes = [
-            { name: '🗑️ Chiếc giày rách', price: 10, chance: 40 },
-            { name: '🐟 Cá rô phi', price: 35, chance: 30 },
-            { name: '🐠 Cá hồi', price: 60, chance: 20 },
-            { name: '🦈 Cá mập con', price: 150, chance: 8 },
-            { name: '🐳 Cá voi thần thoại', price: 400, chance: 2 }
+            { name: '🗑️ Chiếc giày rách', price: 30000, chance: 40 },
+            { name: '🐟 Cá chép / Cá rô phi', price: 150000, chance: 30 },
+            { name: '🐠 Cá hồi', price: 350000, chance: 20 },
+            { name: '🦈 Cá mập con', price: 1000000, chance: 8 },
+            { name: '🐳 Cá voi thần thoại', price: 3000000, chance: 2 }
         ];
 
         const randomNum = Math.random() * 100;
@@ -478,7 +548,7 @@ client.on('messageCreate', async message => {
         user.coins += caughtFish.price;
         await user.save();
 
-        return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
+        return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**!\n💰 Bán được **${Number(caughtFish.price).toLocaleString('vi-VN')} xu**. Ví hiện tại: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
     // --- Gacha ảnh ngẫu nhiên tự động quét thư mục gốc GitHub (.gai) ---
@@ -642,7 +712,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // --- LỆNH THÚ CƯNG (.pet) ---
+    // --- LỆNH THÚ CƯNG (.pet) (Thêm tính năng sell random tới 20k xu) ---
     if (command === 'pet') {
         const subAction = args[0];
 
@@ -665,6 +735,16 @@ client.on('messageCreate', async message => {
         }
 
         let p = { ...user.pet };
+
+        if (subAction === 'sell') {
+            // Random tiền bán pet từ 1 đến 20.000 xu
+            const sellPrice = Math.floor(Math.random() * 20000) + 1;
+            user.coins += sellPrice;
+            const petName = p.name;
+            user.pet = null; // Xóa pet
+            await user.save();
+            return message.reply(`💸 Bạn đã bán thú cưng **${petName}** và thu về **${sellPrice.toLocaleString('vi-VN')} xu** vào ví!`);
+        }
 
         if (subAction === 'feed') {
             const feedCooldown = 4 * 60 * 60 * 1000; 
@@ -703,7 +783,7 @@ client.on('messageCreate', async message => {
         const petEmbed = new EmbedBuilder()
             .setColor(0x3498DB)
             .setTitle(`🐾 Thú Cưng: ${p.name}`)
-            .setDescription(`⭐ **Level:** ${p.level}\n✨ **EXP:** ${p.exp} / ${p.level * 50}`);
+            .setDescription(`⭐ **Level:** ${p.level}\n✨ **EXP:** ${p.exp} / ${p.level * 50}\n💡 Gõ \`${PREFIX}pet sell\` nếu bạn muốn bán pet này.`);
 
         return message.reply({ embeds: [petEmbed] });
     }

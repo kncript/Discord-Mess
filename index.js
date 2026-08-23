@@ -734,4 +734,4 @@ client.on('messageCreate', async message => {
 });
 
 // 5. Đăng nhập bot
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN); 

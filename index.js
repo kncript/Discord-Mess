@@ -211,7 +211,7 @@ client.on('messageCreate', async message => {
             .addFields(
                 { name: 'ℹ️ Thông Tin & Hệ Thống', value: `\`${PREFIX}info\` - Xem thông tin bot\n\`${PREFIX}hello\` - Kiểm tra trạng thái`, inline: false },
                 { name: '💰 Kinh Tế & Điểm Danh', value: `\`${PREFIX}coins [@user]\` - Xem số dư xu\n\`${PREFIX}daily\` - Điểm danh chuỗi Streak nhận quà tăng dần\n\`${PREFIX}top\` - Xem bảng xếp hạng top 10`, inline: false },
-                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh waifu anime chuẩn (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
+                { name: '🎮 Mini-Game & Cờ Bạc', value: `\`${PREFIX}gai\` - Gacha ảnh waifu ngẫu nhiên từ kho GitHub (20 xu)\n\`${PREFIX}cauca\` - Quăng mồi câu cá (30 xu)\n\`${PREFIX}caucalist\` - Xem bảng giá trị cá\n\`${PREFIX}xx <số xu / all> <tai/xiu>\` - Tài Xỉu (Thắng x2 / Tất tay)\n\`${PREFIX}rob @user\` - Cướp xu người khác\n\`${PREFIX}lode <số 00-99> <số xu>\` - Xổ số lô đề (Ăn x70)\n\`${PREFIX}game\` & \`${PREFIX}doan <số>\` - Đoán số nhận thưởng`, inline: false },
                 { name: '🐾 Hệ Thống Thú Cưng (Pet)', value: `\`${PREFIX}pet buy <tên>\` - Nhận nuôi pet\n\`${PREFIX}pet\` - Xem thông tin pet\n\`${PREFIX}pet feed\` - Cho pet ăn\n\`${PREFIX}pet work\` - Sai pet đi kiếm xu`, inline: false },
                 { name: '🛠 Quản Trị (Admin)', value: `\`${PREFIX}xu add <số> @user\` - Bơm xu\n\`${PREFIX}xu sub <số> @user\` - Trừ xu\n\`${PREFIX}clear <số>\` - Xóa tin nhắn\n\`${PREFIX}ban @user\` / \`${PREFIX}unban <ID>\` - Ban/Unban\n\`${PREFIX}mute @user\` / \`${PREFIX}unmute @user\` - Mute/Unmute`, inline: false },
                 { name: '👑 Chủ Bot Tối Cao', value: `\`${PREFIX}bot off\` / \`${PREFIX}bot on\` - Tắt/Bật bot\n\`${PREFIX}xu reset @user\` - Reset xu\n\`${PREFIX}admin add/remove @user\` - Quản lý Admin`, inline: false }
@@ -481,7 +481,7 @@ client.on('messageCreate', async message => {
         return message.reply(`🎣 Bạn câu được: **${caughtFish.name}**!\n💰 Bán được **${caughtFish.price} xu**. Số dư: **${Number(user.coins).toLocaleString('vi-VN')} xu**.`);
     }
 
-    // --- Gacha ảnh waifu anime (.gai - Dùng waifu.pics API ổn định) ---
+    // --- Gacha ảnh ngẫu nhiên tự động quét thư mục gốc GitHub (.gai) ---
     if (command === 'gai') {
         const cost = 20;
         if (user.coins < cost) {
@@ -492,10 +492,26 @@ client.on('messageCreate', async message => {
         await user.save();
 
         try {
-            const loadingMsg = await message.reply('✨ Đang triệu hồi waifu anime thật sự cho bạn...');
+            const loadingMsg = await message.reply('✨ Đang bốc thăm kho ảnh ngẫu nhiên từ GitHub cho bạn...');
 
-            const response = await axios.get('https://api.waifu.pics/sfw/waifu');
-            const imageUrl = response.data.url;
+            const githubOwner = 'kncript';
+            const repoName = 'Discord-Mess';
+            const apiUrl = `https://api.github.com/repos/${githubOwner}/${repoName}/contents`;
+            
+            const response = await axios.get(apiUrl);
+
+            // Tự động lọc ra các file ảnh nằm ở thư mục gốc
+            const imageFiles = response.data.filter(file => file.type === 'file' && /\.(jpg|jpeg|png|webp|gif)$/i.test(file.name));
+
+            if (imageFiles.length === 0) {
+                user.coins += cost;
+                await user.save();
+                return loadingMsg.edit('❌ Không tìm thấy file ảnh nào trên GitHub!');
+            }
+
+            // Chọn ngẫu nhiên 1 ảnh
+            const randomImage = imageFiles[Math.floor(Math.random() * imageFiles.length)];
+            const imageUrl = randomImage.download_url;
 
             const gachaEmbed = new EmbedBuilder()
                 .setColor(0xFF00FF)
@@ -504,12 +520,15 @@ client.on('messageCreate', async message => {
                 .setImage(imageUrl)
                 .setTimestamp();
 
-            return loadingMsg.edit({ content: null, embeds: [gachaEmbed] });
+            return loadingMsg.edit({
+                content: null,
+                embeds: [gachaEmbed]
+            });
         } catch (error) {
-            console.error('Lỗi khi gọi API ảnh:', error);
+            console.error('Lỗi khi quét kho ảnh GitHub:', error);
             user.coins += cost;
             await user.save();
-            return message.reply('❌ Đã xảy ra lỗi khi tải ảnh từ mạng, xu của bạn đã được hoàn lại!');
+            return loadingMsg.edit('❌ Đã xảy ra lỗi khi kết nối kho ảnh GitHub, xu của bạn đã được hoàn lại!');
         }
     }
 
